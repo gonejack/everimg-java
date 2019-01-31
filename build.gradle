@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'idea'
     id "org.beryx.jlink" version "2.4.4"
+    id 'com.github.johnrengelman.shadow' version '4.0.4'
 }
 
 group 'everimg'
@@ -50,13 +51,3 @@ jlink {
         jvmArgs = []
     }
 }
-
-// to executable fat jar
-//jar {
-//    manifest {
-//        attributes "Main-Class": "app.App"
-//    }
-//    from {
-//        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
-//    }
-//}
