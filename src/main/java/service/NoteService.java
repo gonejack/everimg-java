@@ -333,7 +333,7 @@ public class NoteService extends Service implements Interface {
             logger.error("无法保存状态文件[{}]", e);
         }
     }
-    private void readLocalSyncState() {
+    private LocalSyncState readLocalSyncState() {
         try {
             Path path = Path.of(noteStateFile);
 
@@ -342,7 +342,7 @@ public class NoteService extends Service implements Interface {
 
                 logger.debug("读取状态文件[{}]: {}", noteStateFile, json);
 
-                localSyncState = new Gson().fromJson(json, LocalSyncState.class);
+                return localSyncState = new Gson().fromJson(json, LocalSyncState.class);
             }
             else {
                 logger.debug("没有状态文件[{}]", path.toAbsolutePath());
@@ -350,9 +350,9 @@ public class NoteService extends Service implements Interface {
         }
         catch (IOException e) {
             logger.error("无法读取状态文件[{}]", e);
-
-            localSyncState = new LocalSyncState();
         }
+
+        return localSyncState = new LocalSyncState();
     }
 
     static class helper {
