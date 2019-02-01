@@ -1,25 +1,43 @@
 package worker;
 
 import app.Log;
+import com.evernote.edam.type.Note;
 import service.NoteService;
 
 public class NoteUpdateWorker extends Worker implements Interface {
-    private static NoteUpdateWorker me;
-    public static NoteUpdateWorker init() {
-        if (me == null) {
-            me = new NoteUpdateWorker();
-        }
-        return me;
-    }
-
+    private NoteService noteService;
     private boolean running = false;
     private boolean keep = true;
     private Thread loop;
+
+    private static NoteUpdateWorker me;
+    public static synchronized NoteUpdateWorker init() {
+        if (me == null) {
+            me = new NoteUpdateWorker();
+        }
+
+        return me;
+    }
     private NoteUpdateWorker() {
         logger = Log.newLogger(NoteUpdateWorker.class);
+        noteService = NoteService.init();
     }
-    private void checkNote() {
 
+    private void updateNotes() {
+        for (Note note : noteService.getRecentUpdatedNotes()) {
+            String title = note.getTitle();
+
+            logger.debug("更新笔记[{}]", title);
+            int changes = noteService.modifyNote(note);
+            if (changes > 0) {
+                logger.debug("保存笔记[{}]", title);
+
+                noteService.saveNote(note);
+            }
+            else {
+                logger.debug("笔记[{}]没有变动", title);
+            }
+        }
     }
 
     @Override
@@ -31,7 +49,7 @@ public class NoteUpdateWorker extends Worker implements Interface {
 
             while (this.keep) {
                 this.sleep(10);
-                this.checkNote();
+                this.updateNotes();
             }
 
             this.running = false;

@@ -28,12 +28,16 @@ public class App {
         Stopper.init();
     }
     private static void start() {
+        logger.debug("开始启动");
+
         services.forEach(service.Interface::start);
         workers.forEach(worker.Interface::start);
 
         logger.info("启动完成");
     }
     private static void stop() {
+        logger.debug("开始退出");
+
         workers.forEach(worker.Interface::stop);
         services.forEach(service.Interface::stop);
 
@@ -43,7 +47,7 @@ public class App {
             Map.entry("qzone", "def")
         );
 
-        logger.info("关闭退出完成");
+        logger.info("退出完成");
     }
 
     static class Stopper extends Thread implements SignalHandler {
@@ -52,13 +56,14 @@ public class App {
 
             Signal.handle(new Signal("INT"), stopper);
             Signal.handle(new Signal("TERM"), stopper);
-
-            Runtime.getRuntime().addShutdownHook(stopper);
         }
 
         @Override
         public void handle(Signal signal) {
             logger.info("收到信号: {}", signal.toString());
+
+            Runtime.getRuntime().addShutdownHook(this);
+
             System.exit(0);
         }
 
