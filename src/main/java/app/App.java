@@ -8,7 +8,6 @@ import worker.NoteUpdateWorker;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class App {
     private static Logger logger = Log.newLogger(App.class);
@@ -40,12 +39,6 @@ public class App {
 
         workers.forEach(worker.Interface::stop);
         services.forEach(service.Interface::stop);
-
-        Map<String, String> m = Map.ofEntries(
-            Map.entry("abc", "def"),
-            Map.entry("def", "qq"),
-            Map.entry("qzone", "def")
-        );
 
         logger.info("退出完成");
     }

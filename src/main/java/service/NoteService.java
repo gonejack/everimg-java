@@ -28,7 +28,6 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.*;
 
-
 public class NoteService extends Service implements Interface {
     private final String token = Conf.mustGet("evernote.token");
     private final boolean yinxiang = Conf.get("evernote.china", false);
@@ -109,10 +108,6 @@ public class NoteService extends Service implements Interface {
         logger.debug("退出完成");
     }
 
-    /**
-     *
-     * @return NotesMetadataList|null
-     */
     public NotesMetadataList getRecentUpdatedNoteMetas() {
         try {
             SyncState syncState = noteStore.getSyncState();
@@ -142,7 +137,6 @@ public class NoteService extends Service implements Interface {
 
         return null;
     }
-
     public List<Note> getRecentUpdatedNotes() {
         NotesMetadataList metaList = this.getRecentUpdatedNoteMetas();
 
@@ -170,11 +164,6 @@ public class NoteService extends Service implements Interface {
         }
     }
 
-    /**
-     *
-     * @param metadata note
-     * @return Note | null
-     */
     public Note getNote(NoteMetadata metadata) {
         try {
             return noteStore.getNote(metadata.getGuid(), true, false, true, false);
@@ -185,7 +174,6 @@ public class NoteService extends Service implements Interface {
 
         return null;
     }
-
     public void saveNote(Note note) {
         try {
             noteStore.updateNote(note);
@@ -194,7 +182,6 @@ public class NoteService extends Service implements Interface {
             logger.error("保存笔记[{}]出错", e);
         }
     }
-
     public int modifyNote(Note note) {
         int changes = 0;
 
@@ -211,7 +198,7 @@ public class NoteService extends Service implements Interface {
         if (title.contains("[图片]")) {
             note.setTitle(title.replace("[图片]", ""));
             changes += 1;
-        };
+        }
 
         return changes;
     }
@@ -264,6 +251,7 @@ public class NoteService extends Service implements Interface {
 
         return changes;
     }
+
     private Optional<Resource> getImageResource(String file) {
         try {
             byte[] body = Files.readAllBytes(Path.of(file));
@@ -316,10 +304,6 @@ public class NoteService extends Service implements Interface {
         return String.format(tagTpl, String.join(" ", attrs));
     }
 
-    class LocalSyncState {
-        int updateCount;
-        long updateTimeStamp;
-    }
 
     private void saveLocalSyncState() {
         try {
@@ -333,7 +317,9 @@ public class NoteService extends Service implements Interface {
             logger.error("无法保存状态文件[{}]", e);
         }
     }
-    private LocalSyncState readLocalSyncState() {
+    private void readLocalSyncState() {
+        localSyncState = new LocalSyncState();
+
         try {
             Path path = Path.of(noteStateFile);
 
@@ -342,7 +328,7 @@ public class NoteService extends Service implements Interface {
 
                 logger.debug("读取状态文件[{}]: {}", noteStateFile, json);
 
-                return localSyncState = new Gson().fromJson(json, LocalSyncState.class);
+                localSyncState = new Gson().fromJson(json, LocalSyncState.class);
             }
             else {
                 logger.debug("没有状态文件[{}]", path.toAbsolutePath());
@@ -351,10 +337,12 @@ public class NoteService extends Service implements Interface {
         catch (IOException e) {
             logger.error("无法读取状态文件[{}]", e);
         }
-
-        return localSyncState = new LocalSyncState();
     }
 
+    class LocalSyncState {
+        int updateCount;
+        long updateTimeStamp;
+    }
     static class helper {
          static String bytesToHex(byte[] bytes) {
             StringBuilder sb = new StringBuilder();

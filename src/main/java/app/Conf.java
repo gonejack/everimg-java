@@ -17,7 +17,6 @@ public class Conf {
         loadFromSystem();
         loadFromFile();
     }
-
     private static void loadFromSystem() {
         System.getProperties().forEach((k, v) -> props.setProperty((String) k, (String) v));
     }
@@ -45,11 +44,9 @@ public class Conf {
     private static String get(String key) {
         return props.getProperty(key);
     }
-
     public static String get(String key, String def) {
         return props.getProperty(key, def);
     }
-
     public static int get(String key, int def) {
         int val = Optional.ofNullable(get(key)).map(Integer::valueOf).orElse(def);
 
@@ -57,7 +54,6 @@ public class Conf {
 
         return val;
     }
-
     public static boolean get(String key, boolean def) {
         boolean val = Optional.ofNullable(get(key)).map(s -> "true".equalsIgnoreCase(s.trim())).orElse(def);
 
@@ -65,7 +61,6 @@ public class Conf {
 
         return val;
     }
-
     public static String mustGet(String key) {
         String val = get(key);
 
