@@ -11,16 +11,13 @@ import com.evernote.edam.notestore.*;
 import com.evernote.edam.type.*;
 import com.google.gson.Gson;
 import libs.Downloader;
+import libs.ImageFile;
+import libs.ImageURL;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.net.URLConnection;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -205,17 +202,30 @@ public class NoteService extends Service implements Interface {
     private int modifyNoteContent(Note note) {
         int changes = 0;
 
-        String content = note.getContent();
-        Document doc = Jsoup.parse(content);
+        Document doc = Jsoup.parse(note.getContent());
+
         Map<String, Set<String>> toReplace = new HashMap<>();
         for (Element img : doc.select("img")) {
             String src = img.attr("src");
 
-            if (src.startsWith("data")) {
-                logger.debug("跳过data图片");
+            if (src.isEmpty()) {
+                logger.warn("{}不包含图片地址", img.outerHtml());
             }
             else {
-                toReplace.computeIfAbsent(src, k -> new HashSet<>()).add(img.outerHtml());
+                if (src.startsWith("data")) {
+                    logger.debug("跳过data图片");
+                }
+                else {
+                    String hqSrc = ImageURL.getHighQuality(src);
+
+                    if (!src.equals(hqSrc)) {
+                        logger.debug("使用更高质量图片 {} => {}", hqSrc, src);
+
+                        src = hqSrc;
+                    }
+
+                    toReplace.computeIfAbsent(src, k -> new HashSet<>()).add(img.outerHtml());
+                }
             }
         }
 
@@ -244,7 +254,7 @@ public class NoteService extends Service implements Interface {
                 }
             }
             else {
-                logger.error("下载出错: {} => {}", result.getUrl(), result.getFile(), result.getException());
+                logger.error("下载出错[url={} => file={}]: {}", result.getUrl(), result.getFile(), result.getException());
             }
         }
 
@@ -253,29 +263,25 @@ public class NoteService extends Service implements Interface {
 
     private Optional<Resource> getImageResource(String file) {
         try {
-            byte[] body = Files.readAllBytes(Path.of(file));
+            ImageFile imageFile = new ImageFile(file);
 
-            BufferedInputStream is = new BufferedInputStream(new ByteArrayInputStream(body));
-            String mime = URLConnection.guessContentTypeFromStream(is);
-
+            String mime = imageFile.getMIME();
             if (mime != null) {
-                BufferedImage readImage = ImageIO.read(new ByteArrayInputStream(body));
-                if (readImage != null) {
-                    Resource resource = new Resource();
+                Resource resource = new Resource();
 
-                    Data data = new Data();
-                    data.setBody(body);
-                    data.setSize(body.length);
-                    data.setBodyHash(MessageDigest.getInstance("MD5").digest(body));
-                    resource.setData(data);
+                resource.setMime(mime);
+                resource.setHeight((short) imageFile.getHeight());
+                resource.setWidth((short) imageFile.getWidth());
+                resource.setAttributes(new ResourceAttributes());
 
-                    resource.setMime(mime);
-                    resource.setHeight((short) readImage.getHeight());
-                    resource.setWidth((short) readImage.getWidth());
-                    resource.setAttributes(new ResourceAttributes());
+                byte[] content = imageFile.getContent();
+                Data data = new Data();
+                data.setBody(content);
+                data.setSize(content.length);
+                data.setBodyHash(MessageDigest.getInstance("MD5").digest(content));
+                resource.setData(data);
 
-                    return Optional.of(resource);
-                }
+                return Optional.of(resource);
             }
         }
         catch (Exception e) {

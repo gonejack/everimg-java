@@ -8,17 +8,16 @@ import java.net.URLConnection;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.*;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.*;
 
 public class Downloader {
-    private static ExecutorService downloadService = Executors.newFixedThreadPool(2);
+    private final static String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36";
+    private final static ExecutorService execSrv = Executors.newFixedThreadPool(3);
 
-    public static DownloadResult downloadToTemp(String uri, int timeoutSec) {
-        Objects.requireNonNull(uri);
-
-        return downloadAllToTemp(Collections.singletonList(uri), timeoutSec).get(0);
-    }
     public static List<DownloadResult> downloadAllToTemp(List<String> urls, int timeoutSecForEach)  {
         Objects.requireNonNull(urls);
 
@@ -26,7 +25,7 @@ public class Downloader {
         LinkedList<Future<String>> futures = new LinkedList<>();
         for (String url : urls) {
             results.add(new DownloadResult(url));
-            futures.add(downloadService.submit(new DownloadTask(url)));
+            futures.add(execSrv.submit(new DownloadTask(url)));
         }
 
         Iterator<DownloadResult> resultIterator = results.iterator();
@@ -34,6 +33,7 @@ public class Downloader {
             DownloadResult result = resultIterator.next();
             try {
                 String savedFile = future.get(timeoutSecForEach, TimeUnit.SECONDS);
+                result.setSuc(true);
                 result.setFile(savedFile);
             }
             catch (TimeoutException e) {
@@ -47,7 +47,6 @@ public class Downloader {
 
         return results;
     }
-
     public static class DownloadResult {
         private String url;
         private String file;
@@ -90,6 +89,7 @@ public class Downloader {
             this.exception = exception;
         }
     }
+
     private static class DownloadTask implements Callable<String> {
         String url;
 
@@ -102,6 +102,7 @@ public class Downloader {
             File target = File.createTempFile("everimg", ".pic");
 
             URLConnection conn = new URL(url).openConnection();
+            conn.setRequestProperty("User-Agent", USER_AGENT);
             ReadableByteChannel input = Channels.newChannel(conn.getInputStream());
             FileChannel output = new FileOutputStream(target).getChannel();
 

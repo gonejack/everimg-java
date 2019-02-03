@@ -60,15 +60,6 @@ public class DownloaderTest {
     }
 
     @Test
-    public void downloadToTemp() {
-        Downloader.DownloadResult result = Downloader.downloadToTemp("https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif", timeoutSec);
-
-        System.out.println(result.getUrl());
-        System.out.println(result.getFile());
-        System.out.println(result.getException());
-    }
-
-    @Test
     public void downloadAllToTemp() {
         List<String> list = Arrays.asList(
             "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",

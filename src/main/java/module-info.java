@@ -8,8 +8,6 @@ module everimg {
     requires jai.imageio.core;
     requires java.desktop;
     requires java.sql;
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpcore;
 
     exports app;
 }
