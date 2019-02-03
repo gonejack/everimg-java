@@ -219,34 +219,33 @@ public class NoteService extends Service implements Interface {
             }
         }
 
-        try {
-            List<Downloader.DownloadResult> results = Downloader.downloadAllToTemp(new ArrayList<>(toReplace.keySet()));
+        List<Downloader.DownloadResult> results = Downloader.downloadAllToTemp(new ArrayList<>(toReplace.keySet()), 30);
+        for (Downloader.DownloadResult result : results) {
+            if (result.isSuc()) {
+                logger.debug("图片下载结果: {} => {}", result.getUrl(), result.getFile());
 
-            for (Downloader.DownloadResult result : results) {
-                logger.debug("图片下载结果: {} => {}", result.uri, result.file);
-
-                Optional<Resource> resource = getImageResource(result.file);
+                Optional<Resource> resource = getImageResource(result.getFile());
 
                 if (resource.isPresent()) {
                     note.addToResources(resource.get());
 
-                    String resourceTag = this.getImageResourceTag(resource.get());
+                    String noteImageTag = this.getNoteImageTag(resource.get());
 
-                    for (String imageTag : toReplace.get(result.uri)) {
-                        logger.debug("图片替换: {} => {}", imageTag, resourceTag);
+                    for (String imageTag : toReplace.get(result.getUrl())) {
+                        logger.debug("图片标签替换: {} => {}", imageTag, noteImageTag);
 
-                        note.setContent(note.getContent().replace(imageTag, resourceTag));
+                        note.setContent(note.getContent().replace(imageTag, noteImageTag));
                     }
 
                     changes += 1;
                 }
                 else {
-                    logger.error("无法添加图片文件[{}]", result.file);
+                    logger.error("无法添加图片文件[{}]", result.getFile());
                 }
             }
-        }
-        catch (Exception e) {
-            logger.error("下载出错", e);
+            else {
+                logger.error("下载出错: {} => {}", result.getUrl(), result.getFile(), result.getException());
+            }
         }
 
         return changes;
@@ -285,7 +284,7 @@ public class NoteService extends Service implements Interface {
 
         return Optional.empty();
     }
-    private String getImageResourceTag(Resource resource) {
+    private String getNoteImageTag(Resource resource) {
         String tagTpl = "<en-media %s />";
 
         List<String> attrs = new ArrayList<>();
@@ -303,7 +302,6 @@ public class NoteService extends Service implements Interface {
 
         return String.format(tagTpl, String.join(" ", attrs));
     }
-
 
     private void saveLocalSyncState() {
         try {

@@ -8,67 +8,89 @@ import java.net.URLConnection;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.*;
+import java.util.concurrent.*;
 
 public class Downloader {
     private static ExecutorService downloadService = Executors.newFixedThreadPool(2);
 
-    private static boolean download(String from, File to, int timeoutSec, long size) throws IOException {
-        URLConnection conn = new URL(from).openConnection();
-        int timeoutMilli = timeoutSec * 1000;
-        conn.setConnectTimeout(timeoutMilli / 10);
-        conn.setReadTimeout(timeoutMilli);
-
-        ReadableByteChannel input = Channels.newChannel(conn.getInputStream());
-        FileChannel output = new FileOutputStream(to.getAbsolutePath()).getChannel();
-
-        output.transferFrom(input, 0, size > 0 ? size : Long.MAX_VALUE);
-
-        return to.exists();
-    }
-    private static boolean download(String from, File to) throws IOException {
-        return download(from, to, 120, 0);
-    }
-
-    public static DownloadResult downloadToTemp(String uri) throws Exception {
+    public static DownloadResult downloadToTemp(String uri, int timeoutSec) {
         Objects.requireNonNull(uri);
 
-        return downloadAllToTemp(Collections.singletonList(uri)).get(0);
+        return downloadAllToTemp(Collections.singletonList(uri), timeoutSec).get(0);
     }
-    public static List<DownloadResult> downloadAllToTemp(List<String> uris) throws Exception {
-        Objects.requireNonNull(uris);
+    public static List<DownloadResult> downloadAllToTemp(List<String> urls, int timeoutSecForEach)  {
+        Objects.requireNonNull(urls);
 
-        List<DownloadTask> tasks = new LinkedList<>();
-        List<DownloadResult> results = new LinkedList<>();
-
-        for (String src : uris) {
-            tasks.add(new DownloadTask(src));
+        LinkedList<DownloadResult> results = new LinkedList<>();
+        LinkedList<Future<String>> futures = new LinkedList<>();
+        for (String url : urls) {
+            results.add(new DownloadResult(url));
+            futures.add(downloadService.submit(new DownloadTask(url)));
         }
 
-        for (Future<DownloadResult> future : downloadService.invokeAll(tasks)) {
-            results.add(future.get());
+        Iterator<DownloadResult> resultIterator = results.iterator();
+        for (Future<String> future : futures) {
+            DownloadResult result = resultIterator.next();
+            try {
+                String savedFile = future.get(timeoutSecForEach, TimeUnit.SECONDS);
+                result.setFile(savedFile);
+            }
+            catch (TimeoutException e) {
+                future.cancel(true);
+                result.setException(new TimeoutException(String.format("下载超时，超时限制[%ss]", timeoutSecForEach)));
+            }
+            catch (ExecutionException | InterruptedException e) {
+                result.setException(e);
+            }
         }
 
         return results;
     }
 
     public static class DownloadResult {
-        public final String uri;
-        public final String file;
+        private String url;
+        private String file;
+        private boolean suc;
+        private Exception exception;
 
-        DownloadResult(String uri, String file) {
-            this.uri = uri;
+        DownloadResult(String url) {
+            this.url = url;
+        }
+
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public String getFile() {
+            return file;
+        }
+
+        public void setFile(String file) {
             this.file = file;
         }
+
+        public boolean isSuc() {
+            return suc;
+        }
+
+        public void setSuc(boolean suc) {
+            this.suc = suc;
+        }
+
+        public Exception getException() {
+            return exception;
+        }
+
+        public void setException(Exception exception) {
+            this.exception = exception;
+        }
     }
-    private static class DownloadTask implements Callable<DownloadResult> {
+    private static class DownloadTask implements Callable<String> {
         String url;
 
         DownloadTask(String url) {
@@ -76,12 +98,28 @@ public class Downloader {
         }
 
         @Override
-        public DownloadResult call() throws Exception {
-            File target = File.createTempFile("everimg", "");
+        public String call() throws IOException {
+            File target = File.createTempFile("everimg", ".pic");
 
-            download(url, target);
+            URLConnection conn = new URL(url).openConnection();
+            ReadableByteChannel input = Channels.newChannel(conn.getInputStream());
+            FileChannel output = new FileOutputStream(target).getChannel();
 
-            return new DownloadResult(url, target.getAbsolutePath());
+            try {
+                long total = 0;
+                long trans = 0;
+                while((trans = output.transferFrom(input, total, 100 * 1024)) > 0) {
+                    total += trans;
+                }
+            }
+            catch (Exception e) {
+                input.close();
+                output.close();
+                target.delete();
+                throw e;
+            }
+
+            return target.getAbsolutePath();
         }
     }
 }
