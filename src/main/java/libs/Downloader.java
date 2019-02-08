@@ -15,17 +15,17 @@ import java.util.Objects;
 import java.util.concurrent.*;
 
 public class Downloader {
-    private final static String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36";
     private final static ExecutorService execSrv = Executors.newFixedThreadPool(3);
+    private final static String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36";
 
     public static List<DownloadResult> downloadAllToTemp(List<String> urls, int timeoutSecForEach)  {
         Objects.requireNonNull(urls);
 
-        LinkedList<DownloadResult> results = new LinkedList<>();
         LinkedList<Future<String>> futures = new LinkedList<>();
+        LinkedList<DownloadResult> results = new LinkedList<>();
         for (String url : urls) {
+            futures.add(execSrv.submit(new DownloadTempTask(url)));
             results.add(new DownloadResult(url));
-            futures.add(execSrv.submit(new DownloadTask(url)));
         }
 
         Iterator<DownloadResult> resultIterator = results.iterator();
@@ -41,6 +41,7 @@ public class Downloader {
                 result.setException(new TimeoutException(String.format("下载超时，超时限制[%ss]", timeoutSecForEach)));
             }
             catch (ExecutionException | InterruptedException e) {
+                future.cancel(true);
                 result.setException(e);
             }
         }
@@ -90,32 +91,29 @@ public class Downloader {
         }
     }
 
-    private static class DownloadTask implements Callable<String> {
+    private static class DownloadTempTask implements Callable<String> {
         String url;
 
-        DownloadTask(String url) {
+        DownloadTempTask(String url) {
             this.url = url;
         }
 
         @Override
         public String call() throws IOException {
             File target = File.createTempFile("everimg", ".pic");
+            URLConnection connection = new URL(url).openConnection();
+            connection.setRequestProperty("User-Agent", USER_AGENT);
 
-            URLConnection conn = new URL(url).openConnection();
-            conn.setRequestProperty("User-Agent", USER_AGENT);
-            ReadableByteChannel input = Channels.newChannel(conn.getInputStream());
-            FileChannel output = new FileOutputStream(target).getChannel();
-
-            try {
+            try (
+                ReadableByteChannel input = Channels.newChannel(connection.getInputStream());
+                FileChannel output = new FileOutputStream(target).getChannel()
+            ) {
                 long total = 0;
-                long trans = 0;
-                while((trans = output.transferFrom(input, total, 100 * 1024)) > 0) {
-                    total += trans;
+                long read = 0;
+                while ((read = output.transferFrom(input, total, 100 * 1024)) > 0) {
+                    total += read;
                 }
-            }
-            catch (Exception e) {
-                input.close();
-                output.close();
+            } catch (Exception e) {
                 target.delete();
                 throw e;
             }

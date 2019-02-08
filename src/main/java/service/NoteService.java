@@ -16,6 +16,7 @@ import libs.ImageURL;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -26,13 +27,13 @@ import java.security.MessageDigest;
 import java.util.*;
 
 public class NoteService extends Service implements Interface {
+    private final static Logger logger = Log.newLogger(NoteService.class);
     private final String token = Conf.mustGet("evernote.token");
     private final boolean yinxiang = Conf.get("evernote.china", false);
     private final boolean sandbox = Conf.get("evernote.sandbox", false);
     private final String noteStateFile = Conf.get("note.service.state.file", "conf/localSyncState.json");
 
     private LocalSyncState localSyncState;
-
     private UserStoreClient userStore;
     private NoteStoreClient noteStore;
     private EvernoteService service;
@@ -40,6 +41,7 @@ public class NoteService extends Service implements Interface {
     private NotesMetadataResultSpec noteSpec;
 
     private static NoteService me = null;
+
     public static synchronized NoteService init() {
         if (me == null) {
             me = new NoteService();
@@ -47,8 +49,8 @@ public class NoteService extends Service implements Interface {
 
         return me;
     }
+
     private NoteService() {
-        this.logger = Log.newLogger(NoteService.class);
         this.service = EvernoteService.PRODUCTION;
         if (yinxiang) {
             this.service = EvernoteService.YINXIANG;
@@ -61,11 +63,11 @@ public class NoteService extends Service implements Interface {
         this.noteFilter.setOrder(NoteSortOrder.UPDATED.getValue());
 
         this.noteSpec = new NotesMetadataResultSpec();
-        noteSpec.setIncludeTitle(true);
-        noteSpec.setIncludeUpdated(true);
-        noteSpec.setIncludeUpdateSequenceNum(true);
+        this.noteSpec.setIncludeTitle(true);
+        this.noteSpec.setIncludeUpdated(true);
+        this.noteSpec.setIncludeUpdateSequenceNum(true);
 
-        readLocalSyncState();
+        this.readLocalSyncState();
     }
 
     @Override
@@ -75,8 +77,8 @@ public class NoteService extends Service implements Interface {
         try {
             ClientFactory factory = new ClientFactory(new EvernoteAuth(service, token));
 
-            userStore = factory.createUserStoreClient();
-            noteStore = factory.createNoteStoreClient();
+            this.userStore = factory.createUserStoreClient();
+            this.noteStore = factory.createNoteStoreClient();
 
             boolean versionOk = userStore.checkVersion("everimg",
                 com.evernote.edam.userstore.Constants.EDAM_VERSION_MAJOR,
@@ -84,20 +86,18 @@ public class NoteService extends Service implements Interface {
 
             if (versionOk) {
                 logger.debug("客户端构建完成");
-            }
-            else {
+            } else {
                 logger.error("客户端版本不兼容");
                 System.exit(-1);
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error("构建客户端出错 ", e);
-
             System.exit(-1);
         }
 
         logger.debug("启动完成");
     }
+
     @Override
     public void stop() {
         logger.debug("开始退出");
@@ -109,7 +109,6 @@ public class NoteService extends Service implements Interface {
         try {
             SyncState syncState = noteStore.getSyncState();
             int updateCount = syncState.getUpdateCount();
-
             if (updateCount > this.localSyncState.updateCount) {
                 NotesMetadataList metadataList = noteStore.findNotesMetadata(this.noteFilter, 0, 100, this.noteSpec);
 
@@ -127,19 +126,18 @@ public class NoteService extends Service implements Interface {
 
                 return metadataList;
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error("获取更新列表失败", e);
         }
 
         return null;
     }
-    public List<Note> getRecentUpdatedNotes() {
+
+    public List<Note> getRecentUpdatedNotes() throws InterruptedException {
         NotesMetadataList metaList = this.getRecentUpdatedNoteMetas();
 
-
         if (metaList == null) {
-            logger.info("获取列表为空");
+            logger.debug("获取列表为空");
 
             return Collections.emptyList();
         }
@@ -147,12 +145,17 @@ public class NoteService extends Service implements Interface {
             List<Note> noteList = new LinkedList<>();
 
             for (NoteMetadata meta : metaList.getNotes()) {
-                Note note = this.getNote(meta);
+                if (Thread.interrupted()) {
+                    throw new InterruptedException("主动取消笔记读取");
+                }
 
+                Note note = this.getNote(meta);
                 if (note == null) {
                     logger.error("无法更新笔记[{}]：获取笔记为空", meta.getTitle());
                 }
                 else {
+                    logger.debug("读取到笔记{}", meta.getTitle());
+
                     noteList.add(note);
                 }
             }
@@ -163,22 +166,22 @@ public class NoteService extends Service implements Interface {
 
     public Note getNote(NoteMetadata metadata) {
         try {
-            return noteStore.getNote(metadata.getGuid(), true, false, true, false);
-        }
-        catch (Exception e) {
+            return this.noteStore.getNote(metadata.getGuid(), true, false, true, false);
+        } catch (Exception e) {
             logger.error("获取笔记[{}]失败: {}", metadata.getTitle(), e);
         }
 
         return null;
     }
+
     public void saveNote(Note note) {
         try {
-            noteStore.updateNote(note);
-        }
-        catch (Exception e) {
+            this.noteStore.updateNote(note);
+        } catch (Exception e) {
             logger.error("保存笔记[{}]出错", e);
         }
     }
+
     public int modifyNote(Note note) {
         int changes = 0;
 
@@ -187,29 +190,31 @@ public class NoteService extends Service implements Interface {
 
         return changes;
     }
+
     private int modifyNoteTitle(Note note) {
         int changes = 0;
 
         String title = note.getTitle();
-
         if (title.contains("[图片]")) {
             note.setTitle(title.replace("[图片]", ""));
+
             changes += 1;
         }
 
         return changes;
     }
+
     private int modifyNoteContent(Note note) {
         int changes = 0;
 
         Document doc = Jsoup.parse(note.getContent());
 
-        Map<String, Set<String>> toReplace = new HashMap<>();
-        for (Element img : doc.select("img")) {
-            String src = img.attr("src");
+        Map<String, Set<String>> htmlImageTags = new HashMap<>();
+        for (Element imageNode : doc.select("img")) {
+            String src = imageNode.attr("src");
 
             if (src.isEmpty()) {
-                logger.warn("{}不包含图片地址", img.outerHtml());
+                logger.warn("HTML标签{}缺失图片地址", imageNode.outerHtml());
             }
             else {
                 if (src.startsWith("data")) {
@@ -224,36 +229,33 @@ public class NoteService extends Service implements Interface {
                         src = hqSrc;
                     }
 
-                    toReplace.computeIfAbsent(src, k -> new HashSet<>()).add(img.outerHtml());
+                    htmlImageTags.computeIfAbsent(src, k -> new HashSet<>()).add(imageNode.outerHtml());
                 }
             }
         }
 
-        List<Downloader.DownloadResult> results = Downloader.downloadAllToTemp(new ArrayList<>(toReplace.keySet()), 30);
+        List<Downloader.DownloadResult> results = Downloader.downloadAllToTemp(new ArrayList<>(htmlImageTags.keySet()), 30);
         for (Downloader.DownloadResult result : results) {
             if (result.isSuc()) {
                 logger.debug("图片下载结果: {} => {}", result.getUrl(), result.getFile());
 
-                Optional<Resource> resource = getImageResource(result.getFile());
-
+                Optional<Resource> resource = this.getImageResource(result.getFile());
                 if (resource.isPresent()) {
                     note.addToResources(resource.get());
 
                     String noteImageTag = this.getNoteImageTag(resource.get());
+                    for (String htmlImageTag : htmlImageTags.get(result.getUrl())) {
+                        logger.debug("图片标签替换: {} => {}", htmlImageTag, noteImageTag);
 
-                    for (String imageTag : toReplace.get(result.getUrl())) {
-                        logger.debug("图片标签替换: {} => {}", imageTag, noteImageTag);
-
-                        note.setContent(note.getContent().replace(imageTag, noteImageTag));
+                        note.setContent(note.getContent().replace(htmlImageTag, noteImageTag));
                     }
 
                     changes += 1;
                 }
                 else {
-                    logger.error("无法添加图片文件[{}]", result.getFile());
+                    logger.error("无效的图片文件[{}]", result.getFile());
                 }
-            }
-            else {
+            } else {
                 logger.error("下载出错[url={} => file={}]: {}", result.getUrl(), result.getFile(), result.getException());
             }
         }
@@ -283,13 +285,13 @@ public class NoteService extends Service implements Interface {
 
                 return Optional.of(resource);
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error("文件[{}]无法读取为图片资源: {}", file, e);
         }
 
         return Optional.empty();
     }
+
     private String getNoteImageTag(Resource resource) {
         String tagTpl = "<en-media %s />";
 
@@ -300,8 +302,7 @@ public class NoteService extends Service implements Interface {
 
         if (resource.getWidth() > 650) {
             attrs.add(String.format("width=\"%s\"", 650));
-        }
-        else {
+        } else {
             attrs.add(String.format("height=\"%s\"", resource.getHeight()));
             attrs.add(String.format("width=\"%s\"", resource.getWidth()));
         }
@@ -311,7 +312,7 @@ public class NoteService extends Service implements Interface {
 
     private void saveLocalSyncState() {
         try {
-            String json = new Gson().toJson(localSyncState);
+            String json = new Gson().toJson(this.localSyncState);
 
             logger.debug("保存状态文件[{}]: {}", noteStateFile, json);
 
@@ -321,8 +322,9 @@ public class NoteService extends Service implements Interface {
             logger.error("无法保存状态文件[{}]", e);
         }
     }
+
     private void readLocalSyncState() {
-        localSyncState = new LocalSyncState();
+        this.localSyncState = new LocalSyncState();
 
         try {
             Path path = Path.of(noteStateFile);
@@ -332,13 +334,11 @@ public class NoteService extends Service implements Interface {
 
                 logger.debug("读取状态文件[{}]: {}", noteStateFile, json);
 
-                localSyncState = new Gson().fromJson(json, LocalSyncState.class);
-            }
-            else {
+                this.localSyncState = new Gson().fromJson(json, LocalSyncState.class);
+            } else {
                 logger.debug("没有状态文件[{}]", path.toAbsolutePath());
             }
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             logger.error("无法读取状态文件[{}]", e);
         }
     }
@@ -347,8 +347,9 @@ public class NoteService extends Service implements Interface {
         int updateCount;
         long updateTimeStamp;
     }
+
     static class helper {
-         static String bytesToHex(byte[] bytes) {
+        static String bytesToHex(byte[] bytes) {
             StringBuilder sb = new StringBuilder();
             for (byte hashByte : bytes) {
                 int intVal = 0xff & hashByte;

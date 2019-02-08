@@ -15,19 +15,20 @@ public class App {
     private static List<worker.Interface> workers = new ArrayList<>();
 
     public static void main(String[] args) {
-        Conf.init();
         App.init();
         App.start();
     }
 
     private static void init() {
+        Conf.init();
+
         services.add(NoteService.init());
         workers.add(NoteUpdateWorker.init());
 
-        Stopper.init();
+        Stop.init();
     }
     private static void start() {
-        logger.debug("开始启动");
+        logger.info("开始启动");
 
         services.forEach(service.Interface::start);
         workers.forEach(worker.Interface::start);
@@ -35,7 +36,7 @@ public class App {
         logger.info("启动完成");
     }
     private static void stop() {
-        logger.debug("开始退出");
+        logger.info("开始退出");
 
         workers.forEach(worker.Interface::stop);
         services.forEach(service.Interface::stop);
@@ -43,9 +44,9 @@ public class App {
         logger.info("退出完成");
     }
 
-    static class Stopper extends Thread implements SignalHandler {
+    static class Stop extends Thread implements SignalHandler {
         static void init() {
-            Stopper stopper = new Stopper();
+            Stop stopper = new Stop();
 
             Signal.handle(new Signal("INT"), stopper);
             Signal.handle(new Signal("TERM"), stopper);
@@ -63,8 +64,7 @@ public class App {
         @Override
         public void run() {
             App.stop();
-
-//            Thread.getAllStackTraces().forEach((k, v) -> {logger.debug("执行线程: {}, {}", k, v);});
+//            Thread.getAllStackTraces().forEach((k, v) -> {logger.debug("剩余线程: {}, {}", k, v);});
         }
     }
 }
