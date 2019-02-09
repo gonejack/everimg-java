@@ -54,7 +54,7 @@ public class App {
 
         @Override
         public void handle(Signal signal) {
-            logger.info("收到信号: {}", signal.toString());
+            logger.debug("收到信号: {}", signal.toString());
 
             Runtime.getRuntime().addShutdownHook(this);
 
@@ -63,7 +63,10 @@ public class App {
 
         @Override
         public void run() {
+            Thread.currentThread().setName("stop");
+
             App.stop();
+
 //            Thread.getAllStackTraces().forEach((k, v) -> {logger.debug("剩余线程: {}, {}", k, v);});
         }
     }

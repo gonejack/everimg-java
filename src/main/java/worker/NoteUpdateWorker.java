@@ -68,13 +68,13 @@ public class NoteUpdateWorker extends Worker implements Interface {
                     this.updateNotes();
                 }
                 catch (InterruptedException e) {
-                    logger.debug("退出工作循环: {}", e.getMessage());
+                    logger.debug("退出定时循环: {}", e.getMessage());
                     break;
                 }
             }
 
             this.running = false;
-        });
+        }, "loop");
         this.loop.start();
 
         logger.debug("启动完成");
@@ -84,16 +84,17 @@ public class NoteUpdateWorker extends Worker implements Interface {
     public void stop() {
         logger.debug("开始退出");
 
-        this.keep = false;
         while (this.running) {
             try {
+                this.keep = false;
                 this.loop.interrupt();
-                logger.debug("退出中");
                 this.sleepSec(1);
+                if (this.running) {
+                    logger.debug("退出等待中...");
+                }
             }
             catch (InterruptedException e) {
                 logger.error("关机线程出错: {}", e.getMessage());
-                break;
             }
         }
 

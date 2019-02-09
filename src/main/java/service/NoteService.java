@@ -121,12 +121,13 @@ public class NoteService extends Service implements Interface {
                 metadataList.setNotes(notes);
 
                 this.localSyncState.updateCount = updateCount;
-                this.localSyncState.updateTimeStamp = System.currentTimeMillis();
+                this.localSyncState.updateTimeStamp = syncState.getCurrentTime();
                 this.saveLocalSyncState();
 
                 return metadataList;
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             logger.error("获取更新列表失败", e);
         }
 
@@ -255,7 +256,8 @@ public class NoteService extends Service implements Interface {
                 else {
                     logger.error("无效的图片文件[{}]", result.getFile());
                 }
-            } else {
+            }
+            else {
                 logger.error("下载出错[url={} => file={}]: {}", result.getUrl(), result.getFile(), result.getException());
             }
         }
