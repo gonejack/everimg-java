@@ -32,13 +32,17 @@ public class NoteService extends Service implements Interface {
     private final boolean yinxiang = Conf.get("evernote.china", false);
     private final boolean sandbox = Conf.get("evernote.sandbox", false);
     private final String syncStateFile = Conf.get("deploy.syncStateFile", "./conf/state.json");
+    private final static int downloadParallelism = Conf.get("deploy.download.parallelism", 3);
+    private final static int downloadTimeoutSec = Conf.get("deploy.download.timeout", 30);
 
+    private final NoteFilter noteFilter;
+    private final NotesMetadataResultSpec noteSpec;
+    private final Downloader downloader;
+
+    private EvernoteService service;
     private LocalSyncState localSyncState;
     private UserStoreClient userStore;
     private NoteStoreClient noteStore;
-    private EvernoteService service;
-    private NoteFilter noteFilter;
-    private NotesMetadataResultSpec noteSpec;
 
     private static NoteService me = null;
 
@@ -51,14 +55,6 @@ public class NoteService extends Service implements Interface {
     }
 
     private NoteService() {
-        this.service = EvernoteService.PRODUCTION;
-        if (yinxiang) {
-            this.service = EvernoteService.YINXIANG;
-        }
-        if (sandbox) {
-            this.service = EvernoteService.SANDBOX;
-        }
-
         this.noteFilter = new NoteFilter();
         this.noteFilter.setOrder(NoteSortOrder.UPDATED.getValue());
 
@@ -66,6 +62,8 @@ public class NoteService extends Service implements Interface {
         this.noteSpec.setIncludeTitle(true);
         this.noteSpec.setIncludeUpdated(true);
         this.noteSpec.setIncludeUpdateSequenceNum(true);
+
+        this.downloader = new Downloader(downloadParallelism);
 
         this.readLocalSyncState();
     }
@@ -75,10 +73,18 @@ public class NoteService extends Service implements Interface {
         logger.debug("开始启动");
 
         try {
+            service = EvernoteService.PRODUCTION;
+            if (yinxiang) {
+                service = EvernoteService.YINXIANG;
+            }
+            if (sandbox) {
+                service = EvernoteService.SANDBOX;
+            }
+
             ClientFactory factory = new ClientFactory(new EvernoteAuth(service, token));
 
-            this.userStore = factory.createUserStoreClient();
-            this.noteStore = factory.createNoteStoreClient();
+            userStore = factory.createUserStoreClient();
+            noteStore = factory.createNoteStoreClient();
 
             boolean versionOk = userStore.checkVersion("everimg",
                 com.evernote.edam.userstore.Constants.EDAM_VERSION_MAJOR,
@@ -90,7 +96,8 @@ public class NoteService extends Service implements Interface {
                 logger.error("客户端版本不兼容");
                 System.exit(-1);
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             logger.error("构建客户端出错 ", e);
             System.exit(-1);
         }
@@ -236,7 +243,7 @@ public class NoteService extends Service implements Interface {
             }
         }
 
-        List<Downloader.DownloadResult> results = Downloader.downloadAllToTemp(new ArrayList<>(htmlImageTags.keySet()), 30);
+        List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(new ArrayList<>(htmlImageTags.keySet()), downloadTimeoutSec);
         for (Downloader.DownloadResult result : results) {
             if (result.isSuc()) {
                 logger.debug("图片下载: {} => {}", result.getUrl(), result.getFile());

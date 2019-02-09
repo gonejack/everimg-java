@@ -15,10 +15,13 @@ import java.util.Objects;
 import java.util.concurrent.*;
 
 public class Downloader {
-    private final static ExecutorService execSrv = Executors.newFixedThreadPool(3);
     private final static String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36";
+    private final ExecutorService execSrv;
 
-    public static List<DownloadResult> downloadAllToTemp(List<String> urls, int timeoutSecForEach)  {
+    public Downloader(int parallelism) {
+        execSrv = Executors.newFixedThreadPool(parallelism);
+    }
+    public List<DownloadResult> downloadAllToTemp(List<String> urls, int timeoutSecForEach)  {
         Objects.requireNonNull(urls);
 
         LinkedList<Future<String>> futures = new LinkedList<>();
