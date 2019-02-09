@@ -1,5 +1,6 @@
 package worker;
 
+import app.Conf;
 import app.Log;
 import com.evernote.edam.type.Note;
 import org.slf4j.Logger;
@@ -9,8 +10,9 @@ import java.util.List;
 
 public class NoteUpdateWorker extends Worker implements Interface {
     private final static Logger logger = Log.newLogger(NoteUpdateWorker.class);
-    private boolean running = false;
-    private boolean keep = false;
+    private final static int updateIntervalSeconds = Conf.get("deploy.update.intervalSeconds", 10);
+
+    private boolean running;
     private Thread loop;
     private NoteService noteService;
 
@@ -30,7 +32,7 @@ public class NoteUpdateWorker extends Worker implements Interface {
         List<Note> updatedNotes = noteService.getRecentUpdatedNotes();
 
         if (updatedNotes.isEmpty()) {
-            logger.debug("获取更新列表为空");
+            logger.debug("待更新笔记列表为空");
         }
         else {
             for (Note note : updatedNotes) {
@@ -48,7 +50,7 @@ public class NoteUpdateWorker extends Worker implements Interface {
                     noteService.saveNote(note);
                 }
                 else {
-                    logger.debug("笔记[{}]没有变动", title);
+                    logger.debug("笔记[{}]没有更新点", title);
                 }
             }
         }
@@ -59,16 +61,15 @@ public class NoteUpdateWorker extends Worker implements Interface {
         logger.debug("开始启动");
 
         this.loop = new Thread(() -> {
-            this.keep = true;
             this.running = true;
 
-            while (this.keep) {
+            while (true) {
                 try {
-                    this.sleepSec(10);
+                    this.sleepSec(updateIntervalSeconds);
                     this.updateNotes();
                 }
                 catch (InterruptedException e) {
-                    logger.debug("退出定时循环: {}", e.getMessage());
+                    logger.debug("中断循环: {}", e.getMessage());
                     break;
                 }
             }
@@ -86,7 +87,6 @@ public class NoteUpdateWorker extends Worker implements Interface {
 
         while (this.running) {
             try {
-                this.keep = false;
                 this.loop.interrupt();
                 this.sleepSec(1);
                 if (this.running) {

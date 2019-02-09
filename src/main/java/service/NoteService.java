@@ -31,7 +31,7 @@ public class NoteService extends Service implements Interface {
     private final String token = Conf.mustGet("evernote.token");
     private final boolean yinxiang = Conf.get("evernote.china", false);
     private final boolean sandbox = Conf.get("evernote.sandbox", false);
-    private final String noteStateFile = Conf.get("note.service.state.file", "conf/localSyncState.json");
+    private final String syncStateFile = Conf.get("deploy.syncStateFile", "./conf/state.json");
 
     private LocalSyncState localSyncState;
     private UserStoreClient userStore;
@@ -107,6 +107,8 @@ public class NoteService extends Service implements Interface {
 
     public NotesMetadataList getRecentUpdatedNoteMetas() {
         try {
+            logger.debug("读取更新信息");
+
             SyncState syncState = noteStore.getSyncState();
             int updateCount = syncState.getUpdateCount();
             if (updateCount > this.localSyncState.updateCount) {
@@ -128,7 +130,7 @@ public class NoteService extends Service implements Interface {
             }
         }
         catch (Exception e) {
-            logger.error("获取更新列表失败", e);
+            logger.error("获取更新信息失败", e);
         }
 
         return null;
@@ -138,8 +140,6 @@ public class NoteService extends Service implements Interface {
         NotesMetadataList metaList = this.getRecentUpdatedNoteMetas();
 
         if (metaList == null) {
-            logger.debug("获取列表为空");
-
             return Collections.emptyList();
         }
         else {
@@ -152,10 +152,10 @@ public class NoteService extends Service implements Interface {
 
                 Note note = this.getNote(meta);
                 if (note == null) {
-                    logger.error("无法更新笔记[{}]：获取笔记为空", meta.getTitle());
+                    logger.error("读取笔记[{}]为空", meta.getTitle());
                 }
                 else {
-                    logger.debug("读取到笔记{}", meta.getTitle());
+                    logger.debug("读取笔记[{}]", meta.getTitle());
 
                     noteList.add(note);
                 }
@@ -168,8 +168,9 @@ public class NoteService extends Service implements Interface {
     public Note getNote(NoteMetadata metadata) {
         try {
             return this.noteStore.getNote(metadata.getGuid(), true, false, true, false);
-        } catch (Exception e) {
-            logger.error("获取笔记[{}]失败: {}", metadata.getTitle(), e);
+        }
+        catch (Exception e) {
+            logger.error("读取笔记[{}]发生错误: {}", metadata.getTitle(), e);
         }
 
         return null;
@@ -238,7 +239,7 @@ public class NoteService extends Service implements Interface {
         List<Downloader.DownloadResult> results = Downloader.downloadAllToTemp(new ArrayList<>(htmlImageTags.keySet()), 30);
         for (Downloader.DownloadResult result : results) {
             if (result.isSuc()) {
-                logger.debug("图片下载结果: {} => {}", result.getUrl(), result.getFile());
+                logger.debug("图片下载: {} => {}", result.getUrl(), result.getFile());
 
                 Optional<Resource> resource = this.getImageResource(result.getFile());
                 if (resource.isPresent()) {
@@ -258,7 +259,7 @@ public class NoteService extends Service implements Interface {
                 }
             }
             else {
-                logger.error("下载出错[url={} => file={}]: {}", result.getUrl(), result.getFile(), result.getException());
+                logger.error("图片下载出错[url={} => file={}]: {}", result.getUrl(), result.getFile(), result.getException());
             }
         }
 
@@ -316,9 +317,9 @@ public class NoteService extends Service implements Interface {
         try {
             String json = new Gson().toJson(this.localSyncState);
 
-            logger.debug("保存状态文件[{}]: {}", noteStateFile, json);
+            logger.debug("保存状态文件[{}]: {}", syncStateFile, json);
 
-            Files.writeString(Path.of(noteStateFile), json, Charset.forName("utf-8"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            Files.writeString(Path.of(syncStateFile), json, Charset.forName("utf-8"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         }
         catch (Exception e) {
             logger.error("无法保存状态文件[{}]", e);
@@ -329,12 +330,12 @@ public class NoteService extends Service implements Interface {
         this.localSyncState = new LocalSyncState();
 
         try {
-            Path path = Path.of(noteStateFile);
+            Path path = Path.of(syncStateFile);
 
             if (Files.exists(path)) {
                 String json = Files.readString(path, Charset.forName("utf-8"));
 
-                logger.debug("读取状态文件[{}]: {}", noteStateFile, json);
+                logger.debug("读取状态文件[{}]: {}", syncStateFile, json);
 
                 this.localSyncState = new Gson().fromJson(json, LocalSyncState.class);
             } else {
