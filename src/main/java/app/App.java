@@ -10,9 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class App {
-    private static Logger logger = Log.newLogger(App.class);
-    private static List<service.Interface> services = new ArrayList<>();
-    private static List<worker.Interface> workers = new ArrayList<>();
+    private final static Logger logger = Log.newLogger(App.class);
+    private final static List<service.Interface> services = new ArrayList<>();
+    private final static List<worker.Interface> workers = new ArrayList<>();
 
     public static void main(String[] args) {
         App.init();

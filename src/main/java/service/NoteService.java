@@ -8,11 +8,12 @@ import com.evernote.clients.ClientFactory;
 import com.evernote.clients.NoteStoreClient;
 import com.evernote.clients.UserStoreClient;
 import com.evernote.edam.notestore.*;
-import com.evernote.edam.type.*;
+import com.evernote.edam.type.Note;
+import com.evernote.edam.type.NoteSortOrder;
 import com.google.gson.Gson;
 import libs.Downloader;
-import libs.ImageFile;
 import libs.ImageURL;
+import model.ImageFile;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -23,29 +24,49 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.security.MessageDigest;
 import java.util.*;
+
+import static com.evernote.edam.userstore.Constants.EDAM_VERSION_MAJOR;
+import static com.evernote.edam.userstore.Constants.EDAM_VERSION_MINOR;
 
 public class NoteService extends Service implements Interface {
     private final static Logger logger = Log.newLogger(NoteService.class);
-    private final String token = Conf.mustGet("evernote.token");
-    private final boolean yinxiang = Conf.get("evernote.china", false);
-    private final boolean sandbox = Conf.get("evernote.sandbox", false);
-    private final String syncStateFile = Conf.get("deploy.syncStateFile", "./conf/state.json");
-    private final static int downloadParallelism = Conf.get("deploy.download.parallelism", 3);
-    private final static int downloadTimeoutSec = Conf.get("deploy.download.timeout", 30);
-
-    private final NoteFilter noteFilter;
-    private final NotesMetadataResultSpec noteSpec;
+    private final Config config;
     private final Downloader downloader;
+    private final ModifyHelper modifyHelper;
 
-    private EvernoteService service;
     private LocalSyncState localSyncState;
     private UserStoreClient userStore;
     private NoteStoreClient noteStore;
+    private static NoteService me;
 
-    private static NoteService me = null;
+    private NoteService() {
+        this.config = new Config();
+        this.downloader = new Downloader(config.downloadParallelism);
+        this.modifyHelper = new ModifyHelper();
+        this.localSyncState = new LocalSyncState();
 
+        try {
+            ClientFactory factory = new ClientFactory(new EvernoteAuth(config.service, config.token));
+
+            userStore = factory.createUserStoreClient();
+            noteStore = factory.createNoteStoreClient();
+
+            if (userStore.checkVersion("everimg", EDAM_VERSION_MAJOR, EDAM_VERSION_MINOR)) {
+                logger.debug("客户端构建完成");
+            }
+            else {
+                logger.error("客户端版本不兼容");
+
+                System.exit(-1);
+            }
+        }
+        catch (Exception e) {
+            logger.error("构建客户端出错 ", e);
+
+            System.exit(-1);
+        }
+    }
     public static synchronized NoteService init() {
         if (me == null) {
             me = new NoteService();
@@ -54,61 +75,15 @@ public class NoteService extends Service implements Interface {
         return me;
     }
 
-    private NoteService() {
-        this.noteFilter = new NoteFilter();
-        this.noteFilter.setOrder(NoteSortOrder.UPDATED.getValue());
-
-        this.noteSpec = new NotesMetadataResultSpec();
-        this.noteSpec.setIncludeTitle(true);
-        this.noteSpec.setIncludeUpdated(true);
-        this.noteSpec.setIncludeUpdateSequenceNum(true);
-
-        this.downloader = new Downloader(downloadParallelism);
-
-        this.readLocalSyncState();
-    }
-
     @Override
     public void start() {
         logger.debug("开始启动");
-
-        try {
-            service = EvernoteService.PRODUCTION;
-            if (yinxiang) {
-                service = EvernoteService.YINXIANG;
-            }
-            if (sandbox) {
-                service = EvernoteService.SANDBOX;
-            }
-
-            ClientFactory factory = new ClientFactory(new EvernoteAuth(service, token));
-
-            userStore = factory.createUserStoreClient();
-            noteStore = factory.createNoteStoreClient();
-
-            boolean versionOk = userStore.checkVersion("everimg",
-                com.evernote.edam.userstore.Constants.EDAM_VERSION_MAJOR,
-                com.evernote.edam.userstore.Constants.EDAM_VERSION_MINOR);
-
-            if (versionOk) {
-                logger.debug("客户端构建完成");
-            } else {
-                logger.error("客户端版本不兼容");
-                System.exit(-1);
-            }
-        }
-        catch (Exception e) {
-            logger.error("构建客户端出错 ", e);
-            System.exit(-1);
-        }
-
         logger.debug("启动完成");
     }
 
     @Override
     public void stop() {
         logger.debug("开始退出");
-
         logger.debug("退出完成");
     }
 
@@ -117,21 +92,19 @@ public class NoteService extends Service implements Interface {
             logger.debug("读取更新信息");
 
             SyncState syncState = noteStore.getSyncState();
-            int updateCount = syncState.getUpdateCount();
-            if (updateCount > this.localSyncState.updateCount) {
-                NotesMetadataList metadataList = noteStore.findNotesMetadata(this.noteFilter, 0, 100, this.noteSpec);
+            if (syncState.getUpdateCount() > localSyncState.getUpdateCount()) {
+                NotesMetadataList metadataList = noteStore.findNotesMetadata(config.noteFilter, 0, 100, config.noteSpec);
 
                 List<NoteMetadata> notes = new LinkedList<>();
                 for (NoteMetadata note : metadataList.getNotes()) {
-                    if (note.getUpdated() > this.localSyncState.updateTimeStamp) {
+                    if (note.getUpdated() > localSyncState.getUpdateTimeStamp()) {
                         notes.add(note);
                     }
                 }
                 metadataList.setNotes(notes);
 
-                this.localSyncState.updateCount = updateCount;
-                this.localSyncState.updateTimeStamp = syncState.getCurrentTime();
-                this.saveLocalSyncState();
+                localSyncState.setState(syncState);
+                localSyncState.saveIntoFile();
 
                 return metadataList;
             }
@@ -142,7 +115,6 @@ public class NoteService extends Service implements Interface {
 
         return null;
     }
-
     public List<Note> getRecentUpdatedNotes() throws InterruptedException {
         NotesMetadataList metaList = this.getRecentUpdatedNoteMetas();
 
@@ -171,7 +143,6 @@ public class NoteService extends Service implements Interface {
             return noteList;
         }
     }
-
     public Note getNote(NoteMetadata metadata) {
         try {
             return this.noteStore.getNote(metadata.getGuid(), true, false, true, false);
@@ -182,7 +153,6 @@ public class NoteService extends Service implements Interface {
 
         return null;
     }
-
     public void saveNote(Note note) {
         try {
             this.noteStore.updateNote(note);
@@ -190,185 +160,182 @@ public class NoteService extends Service implements Interface {
             logger.error("保存笔记[{}]出错", e);
         }
     }
-
     public int modifyNote(Note note) {
         int changes = 0;
 
-        changes += this.modifyNoteTitle(note);
-        changes += this.modifyNoteContent(note);
+        changes += modifyHelper.modifyNoteTitle(note);
+        changes += modifyHelper.modifyNoteContent(note);
 
         return changes;
     }
 
-    private int modifyNoteTitle(Note note) {
-        int changes = 0;
+    private class Config {
+        final String token = Conf.mustGet("evernote.token");
+        final boolean yinxiang = Conf.get("evernote.china", false);
+        final boolean sandbox = Conf.get("evernote.sandbox", false);
+        final String syncStateFile = Conf.get("deploy.syncStateFile", "./conf/state.json");
+        final int downloadParallelism = Conf.get("deploy.download.parallelism", 3);
+        final int downloadTimeoutSec = Conf.get("deploy.download.timeout", 30);
 
-        String title = note.getTitle();
-        if (title.contains("[图片]")) {
-            note.setTitle(title.replace("[图片]", ""));
+        final EvernoteService service;
+        final NoteFilter noteFilter;
+        final NotesMetadataResultSpec noteSpec;
 
-            changes += 1;
+        Config() {
+            this.noteFilter = new NoteFilter();
+            this.noteFilter.setOrder(NoteSortOrder.UPDATED.getValue());
+
+            this.noteSpec = new NotesMetadataResultSpec();
+            this.noteSpec.setIncludeTitle(true);
+            this.noteSpec.setIncludeUpdated(true);
+            this.noteSpec.setIncludeUpdateSequenceNum(true);
+
+            EvernoteService service = EvernoteService.PRODUCTION;
+            if (yinxiang) {
+                service = EvernoteService.YINXIANG;
+            }
+            if (sandbox) {
+                service = EvernoteService.SANDBOX;
+            }
+            this.service = service;
+        }
+    }
+    private class LocalSyncState {
+        class Data {
+            int updateCount;
+            long updateTimeStamp;
         }
 
-        return changes;
-    }
+        Data data = new Data();
 
-    private int modifyNoteContent(Note note) {
-        int changes = 0;
+        LocalSyncState() {
+            this.readFromFile();
+        }
+        int getUpdateCount() {
+            return data.updateCount;
+        }
+        long getUpdateTimeStamp() {
+            return data.updateTimeStamp;
+        }
+        void setState(SyncState state) {
+            data.updateCount = state.getUpdateCount();
+            data.updateTimeStamp = state.getCurrentTime();
+        }
+        void readFromFile() {
+            try {
+                Path path = Path.of(config.syncStateFile);
 
-        Document doc = Jsoup.parse(note.getContent());
+                if (Files.exists(path)) {
+                    String json = Files.readString(path, Charset.forName("utf-8"));
 
-        Map<String, Set<String>> htmlImageTags = new HashMap<>();
-        for (Element imageNode : doc.select("img")) {
-            String src = imageNode.attr("src");
+                    logger.debug("读取状态文件[{}]: {}", config.syncStateFile, json);
 
-            if (src.isEmpty()) {
-                logger.warn("HTML标签{}缺失图片地址", imageNode.outerHtml());
-            }
-            else {
-                if (src.startsWith("data")) {
-                    logger.debug("跳过data图片");
+                    data = new Gson().fromJson(json, Data.class);
                 }
                 else {
-                    String hqSrc = ImageURL.getHighQuality(src);
-
-                    if (!src.equals(hqSrc)) {
-                        logger.debug("使用更高质量图片 {} => {}", hqSrc, src);
-
-                        src = hqSrc;
-                    }
-
-                    htmlImageTags.computeIfAbsent(src, k -> new HashSet<>()).add(imageNode.outerHtml());
+                    logger.debug("没有状态文件[{}]", path.toAbsolutePath());
                 }
             }
+            catch (IOException e) {
+                logger.error("无法读取状态文件[{}]", e);
+            }
         }
+        void saveIntoFile() {
+            try {
+                String json = new Gson().toJson(data);
 
-        List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(new ArrayList<>(htmlImageTags.keySet()), downloadTimeoutSec);
-        for (Downloader.DownloadResult result : results) {
-            if (result.isSuc()) {
-                logger.debug("图片下载: {} => {}", result.getUrl(), result.getFile());
+                logger.debug("保存状态文件[{}]: {}", config.syncStateFile, json);
 
-                Optional<Resource> resource = this.getImageResource(result.getFile());
-                if (resource.isPresent()) {
-                    note.addToResources(resource.get());
+                Files.writeString(Path.of(config.syncStateFile), json, Charset.forName("utf-8"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            }
+            catch (Exception e) {
+                logger.error("无法保存状态文件[{}]", e);
+            }
+        }
+    }
+    private class ModifyHelper {
+        int modifyNoteTitle(Note note) {
+            int changes = 0;
 
-                    String noteImageTag = this.getNoteImageTag(resource.get());
-                    for (String htmlImageTag : htmlImageTags.get(result.getUrl())) {
-                        logger.debug("图片标签替换: {} => {}", htmlImageTag, noteImageTag);
+            String title = note.getTitle();
+            if (title.contains("[图片]")) {
+                note.setTitle(title.replace("[图片]", ""));
 
-                        note.setContent(note.getContent().replace(htmlImageTag, noteImageTag));
-                    }
+                changes += 1;
+            }
 
-                    changes += 1;
+            return changes;
+        }
+        int modifyNoteContent(Note note) {
+            int changes = 0;
+
+            Document doc = Jsoup.parse(note.getContent());
+
+            Map<String, Set<String>> htmlImageTags = new HashMap<>();
+            for (Element imageNode : doc.select("img")) {
+                String src = imageNode.attr("src");
+
+                if (src.isEmpty()) {
+                    logger.warn("HTML标签{}缺失图片地址", imageNode.outerHtml());
                 }
                 else {
-                    logger.error("无效的图片文件[{}]", result.getFile());
+                    if (src.startsWith("data")) {
+                        logger.debug("跳过data图片");
+                    }
+                    else {
+                        String hqSrc = ImageURL.getHighQuality(src);
+
+                        if (!src.equals(hqSrc)) {
+                            logger.debug("使用更高质量图片 {} => {}", hqSrc, src);
+
+                            src = hqSrc;
+                        }
+
+                        htmlImageTags.computeIfAbsent(src, k -> new HashSet<>()).add(imageNode.outerHtml());
+                    }
                 }
             }
-            else {
-                logger.error("图片下载出错[url={} => file={}]: {}", result.getUrl(), result.getFile(), result.getException());
-            }
-        }
 
-        return changes;
-    }
+            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(new ArrayList<>(htmlImageTags.keySet()), config.downloadTimeoutSec);
+            for (Downloader.DownloadResult result : results) {
+                if (result.isSuc()) {
+                    logger.debug("图片下载: {} => {}", result.getUrl(), result.getFile());
 
-    private Optional<Resource> getImageResource(String file) {
-        try {
-            ImageFile imageFile = new ImageFile(file);
+                    Optional<String> noteImageTagOpt = getImageTag(result.getFile());
+                    if (noteImageTagOpt.isPresent()) {
+                        String noteImageTag = noteImageTagOpt.get();
 
-            String mime = imageFile.getMIME();
-            if (mime != null) {
-                Resource resource = new Resource();
+                        for (String htmlImageTag : htmlImageTags.get(result.getUrl())) {
+                            logger.debug("图片标签替换: {} => {}", htmlImageTag, noteImageTag);
 
-                resource.setMime(mime);
-                resource.setHeight((short) imageFile.getHeight());
-                resource.setWidth((short) imageFile.getWidth());
-                resource.setAttributes(new ResourceAttributes());
+                            note.setContent(note.getContent().replace(htmlImageTag, noteImageTag));
+                        }
 
-                byte[] content = imageFile.getContent();
-                Data data = new Data();
-                data.setBody(content);
-                data.setSize(content.length);
-                data.setBodyHash(MessageDigest.getInstance("MD5").digest(content));
-                resource.setData(data);
-
-                return Optional.of(resource);
-            }
-        } catch (Exception e) {
-            logger.error("文件[{}]无法读取为图片资源: {}", file, e);
-        }
-
-        return Optional.empty();
-    }
-
-    private String getNoteImageTag(Resource resource) {
-        String tagTpl = "<en-media %s />";
-
-        List<String> attrs = new ArrayList<>();
-
-        attrs.add(String.format("type=\"%s\"", resource.getMime()));
-        attrs.add(String.format("hash=\"%s\"", helper.bytesToHex(resource.getData().getBodyHash())));
-
-        if (resource.getWidth() > 650) {
-            attrs.add(String.format("width=\"%s\"", 650));
-        } else {
-            attrs.add(String.format("height=\"%s\"", resource.getHeight()));
-            attrs.add(String.format("width=\"%s\"", resource.getWidth()));
-        }
-
-        return String.format(tagTpl, String.join(" ", attrs));
-    }
-
-    private void saveLocalSyncState() {
-        try {
-            String json = new Gson().toJson(this.localSyncState);
-
-            logger.debug("保存状态文件[{}]: {}", syncStateFile, json);
-
-            Files.writeString(Path.of(syncStateFile), json, Charset.forName("utf-8"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-        }
-        catch (Exception e) {
-            logger.error("无法保存状态文件[{}]", e);
-        }
-    }
-
-    private void readLocalSyncState() {
-        this.localSyncState = new LocalSyncState();
-
-        try {
-            Path path = Path.of(syncStateFile);
-
-            if (Files.exists(path)) {
-                String json = Files.readString(path, Charset.forName("utf-8"));
-
-                logger.debug("读取状态文件[{}]: {}", syncStateFile, json);
-
-                this.localSyncState = new Gson().fromJson(json, LocalSyncState.class);
-            } else {
-                logger.debug("没有状态文件[{}]", path.toAbsolutePath());
-            }
-        } catch (IOException e) {
-            logger.error("无法读取状态文件[{}]", e);
-        }
-    }
-
-    class LocalSyncState {
-        int updateCount;
-        long updateTimeStamp;
-    }
-
-    static class helper {
-        static String bytesToHex(byte[] bytes) {
-            StringBuilder sb = new StringBuilder();
-            for (byte hashByte : bytes) {
-                int intVal = 0xff & hashByte;
-                if (intVal < 0x10) {
-                    sb.append('0');
+                        changes += 1;
+                    }
+                    else {
+                        logger.error("无效的图片文件[{}]", result.getFile());
+                    }
                 }
-                sb.append(Integer.toHexString(intVal));
+                else {
+                    logger.error("图片下载出错[url={} => file={}]: {}", result.getUrl(), result.getFile(), result.getException());
+                }
             }
-            return sb.toString();
+
+            return changes;
+        }
+
+        Optional<String> getImageTag(String file) {
+            try {
+                String tag = new ImageFile(file).toImageResource().toImageTag().toString();
+
+                return Optional.of(tag);
+            }
+            catch (Exception e) {
+                logger.error("文件[{}]无法读取为图片标签: ", e);
+            }
+
+            return Optional.empty();
         }
     }
 }

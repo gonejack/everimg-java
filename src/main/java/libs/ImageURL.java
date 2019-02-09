@@ -24,15 +24,12 @@ public class ImageURL {
         return url;
     }
 
-
     private static String commonFix(String url) {
         return url.trim().replace(" ", "");
     }
-
     private static String getTumblrHQ(String url) {
         return url.replaceFirst("_(640|540|500|400|250)\\.", "_1280.");
     }
-
     private static String getLofterHQ(String url) {
         if (url.contains("?")) {
             url = url.substring(0, url.indexOf("?")) + "?type=jpg";
@@ -40,7 +37,6 @@ public class ImageURL {
 
         return url;
     }
-
     private static String getWeiboHQ(String url) {
         if (url.matches("^https?:/\\w")) {
             url = url.replaceFirst(":/", "://");

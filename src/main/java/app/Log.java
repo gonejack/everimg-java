@@ -7,10 +7,11 @@ import org.slf4j.impl.SimpleLogger;
 import java.util.Optional;
 
 public class Log {
-    private final static String LOG_LEVEL = System.getenv("LOG_LEVEL");
+    private final static String LOG_LEVEL = Optional.ofNullable(System.getenv("LOG_LEVEL"))
+                                                    .map(s -> s.trim().toLowerCase())
+                                                    .orElse("info");
     static {
-        String logLevel = Optional.ofNullable(LOG_LEVEL).map(s -> s.trim().toLowerCase()).orElse("info");
-        System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, logLevel);
+        System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, LOG_LEVEL);
     }
 
     public static <T> Logger newLogger(Class<T> clz) {

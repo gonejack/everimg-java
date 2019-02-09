@@ -10,22 +10,30 @@ import java.util.List;
 
 public class NoteUpdateWorker extends Worker implements Interface {
     private final static Logger logger = Log.newLogger(NoteUpdateWorker.class);
+    private final static NoteService noteService = NoteService.init();
     private final static int updateIntervalSeconds = Conf.get("deploy.update.intervalSeconds", 10);
 
     private boolean running;
     private Thread loop;
-    private NoteService noteService;
 
     private static NoteUpdateWorker me;
-    public static synchronized NoteUpdateWorker init() {
-        if (me == null) {
-            me = new NoteUpdateWorker();
-        }
-
-        return me;
-    }
     private NoteUpdateWorker() {
-        noteService = NoteService.init();
+        this.loop = new Thread(() -> {
+            this.running = true;
+
+            while (true) {
+                try {
+                    this.sleepSec(updateIntervalSeconds);
+                    this.updateNotes();
+                }
+                catch (InterruptedException e) {
+                    logger.debug("中断循环: {}", e.getMessage());
+                    break;
+                }
+            }
+
+            this.running = false;
+        }, "loop");
     }
 
     private void updateNotes() throws InterruptedException {
@@ -56,26 +64,18 @@ public class NoteUpdateWorker extends Worker implements Interface {
         }
     }
 
+    public static synchronized NoteUpdateWorker init() {
+        if (me == null) {
+            me = new NoteUpdateWorker();
+        }
+
+        return me;
+    }
+
     @Override
     public void start() {
         logger.debug("开始启动");
 
-        this.loop = new Thread(() -> {
-            this.running = true;
-
-            while (true) {
-                try {
-                    this.sleepSec(updateIntervalSeconds);
-                    this.updateNotes();
-                }
-                catch (InterruptedException e) {
-                    logger.debug("中断循环: {}", e.getMessage());
-                    break;
-                }
-            }
-
-            this.running = false;
-        }, "loop");
         this.loop.start();
 
         logger.debug("启动完成");
