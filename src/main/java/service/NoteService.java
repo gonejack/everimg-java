@@ -157,9 +157,11 @@ public class NoteService extends Service implements Interface {
     }
     public void saveNote(Note note) {
         try {
+            logger.debug("保存笔记[{}]", note.getTitle());
+
             this.noteStore.updateNote(note);
         } catch (Exception e) {
-            logger.error("保存笔记[{}]出错", e);
+            logger.error("保存笔记[{}]出错: {}", note.getTitle(), e.getMessage());
         }
     }
     public int modifyNote(Note note) {
@@ -301,15 +303,18 @@ public class NoteService extends Service implements Interface {
                 }
             }
 
-            for (String src : sourceElements.keySet()) {
-                Downloader.DownloadResult result = downloader.downloadToTemp(src, config.downloadTimeoutSec);
+            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(sourceElements.keySet(), config.downloadTimeoutSec);
+
+            for (Downloader.DownloadResult result : results) {
+                String src = result.getUrl();
+                String file = result.getFile();
 
                 if (result.isSuc()) {
-                    logger.debug("图片下载: {} => {}", src, result.getFile());
+                    logger.debug("图片下载: {} => {}", src, file);
 
-                    Optional<ImageResource> imageResourceOpt = getNoteImageResource(result.getFile());
-                    if (imageResourceOpt.isPresent()) {
-                        ImageTag imageTag = imageResourceOpt.get().toImageTag();
+                    Optional<ImageResource> imageResource = getNoteImageResource(file);
+                    if (imageResource.isPresent()) {
+                        ImageTag imageTag = imageResource.get().toImageTag();
 
                         for (Element imageNode : sourceElements.get(src)) {
                             String search = imageNode.outerHtml();
@@ -319,13 +324,13 @@ public class NoteService extends Service implements Interface {
                             note.setContent(note.getContent().replace(search, replacement));
                         }
 
-                        note.addToResources(imageResourceOpt.get());
+                        note.addToResources(imageResource.get());
 
                         changes += 1;
                     }
                 }
                 else {
-                    logger.error("图片下载出错[url={} => file={}]: {}", src, result.getFile(), result.getException());
+                    logger.error("图片下载出错[url={} => file={}]: {}", src, file, result.getException());
                 }
             }
 

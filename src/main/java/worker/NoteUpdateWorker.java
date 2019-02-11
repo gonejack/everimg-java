@@ -40,7 +40,7 @@ public class NoteUpdateWorker extends Worker implements Interface {
         List<Note> updatedNotes = noteService.getRecentUpdatedNotes();
 
         if (updatedNotes.isEmpty()) {
-            logger.debug("待更新笔记列表为空");
+            logger.debug("待更新列表为空");
         }
         else {
             for (Note note : updatedNotes) {
@@ -49,13 +49,13 @@ public class NoteUpdateWorker extends Worker implements Interface {
                 }
 
                 String title = note.getTitle();
-                logger.debug("更新笔记[{}]", title);
+                logger.debug("准备更新[{}]", title);
 
                 int changes = noteService.modifyNote(note);
                 if (changes > 0) {
-                    logger.debug("保存笔记[{}]", title);
-
                     noteService.saveNote(note);
+
+                    logger.info("已更新[{}]", title);
                 }
                 else {
                     logger.debug("笔记[{}]没有更新点", title);

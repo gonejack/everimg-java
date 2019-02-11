@@ -8,10 +8,8 @@ import java.net.URLConnection;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 public class Downloader {
     private final static String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36";
@@ -30,32 +28,36 @@ public class Downloader {
             }
         );
     }
-    public DownloadResult downloadToTemp(String url, int timeoutSec) {
-        Objects.requireNonNull(url);
 
-        Future<String> future = executeService.submit(new DownloadTempTask(url));
-        DownloadResult result = new DownloadResult(url);
-
-        try {
-            String savedFile = future.get(timeoutSec, TimeUnit.SECONDS);
-            result.setSuc(true);
-            result.setFile(savedFile);
-        }
-        catch (TimeoutException e) {
-            future.cancel(true);
-            result.setException(new TimeoutException(String.format("下载超时，超时限制[%ss]", timeoutSec)));
-        }
-        catch (ExecutionException | InterruptedException e) {
-            future.cancel(true);
-            result.setException(e);
-        }
-
-        return result;
-    }
-    public List<DownloadResult> downloadAllToTemp(List<String> urls, int timeoutSecForEach)  {
+    public List<DownloadResult> downloadAllToTemp(Collection<String> urls, int timeoutSecForEach)  {
         Objects.requireNonNull(urls);
 
-        return urls.stream().map(url -> downloadToTemp(url, timeoutSecForEach)).collect(Collectors.toList());
+        List<Future<String>> futures = new LinkedList<>();
+        List<DownloadResult> results = new LinkedList<>();
+        for (String url : urls) {
+            futures.add(executeService.submit(new DownloadTempTask(url)));
+            results.add(new DownloadResult(url));
+        }
+
+        Iterator<DownloadResult> resultIterator = results.iterator();
+        for (Future<String> future : futures) {
+            DownloadResult result = resultIterator.next();
+            try {
+                String savedFile = future.get(timeoutSecForEach, TimeUnit.SECONDS);
+                result.setSuc(true);
+                result.setFile(savedFile);
+            }
+            catch (TimeoutException e) {
+                future.cancel(true);
+                result.setException(new TimeoutException(String.format("下载超时，超时限制[%ss]", timeoutSecForEach)));
+            }
+            catch (ExecutionException | InterruptedException e) {
+                future.cancel(true);
+                result.setException(e);
+            }
+        }
+
+        return results;
     }
     public static class DownloadResult {
         private String url;
@@ -65,6 +67,7 @@ public class Downloader {
 
         DownloadResult(String url) {
             this.url = url;
+            this.file = "none";
         }
 
         public String getUrl() {
@@ -121,7 +124,8 @@ public class Downloader {
                 while ((read = output.transferFrom(input, total, 100 * 1024)) > 0) {
                     total += read;
                 }
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 target.delete();
                 throw e;
             }
