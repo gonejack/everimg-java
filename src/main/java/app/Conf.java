@@ -22,7 +22,7 @@ public class Conf {
         System.getProperties().forEach((k, v) -> props.setProperty((String) k, (String) v));
     }
     private static void loadFromFile() {
-        try (InputStream is = Conf.class.getResourceAsStream(res_file)) {
+        try (InputStream is = Conf.class.getClassLoader().getResourceAsStream(res_file)) {
             props.load(is);
         }
         catch (Exception e) {

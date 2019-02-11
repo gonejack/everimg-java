@@ -14,6 +14,8 @@ import com.google.gson.Gson;
 import libs.Downloader;
 import libs.ImageURL;
 import model.ImageFile;
+import model.ImageResource;
+import model.ImageTag;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -271,7 +273,7 @@ public class NoteService extends Service implements Interface {
 
             Document doc = Jsoup.parse(note.getContent());
 
-            Map<String, Set<String>> htmlImageTags = new HashMap<>();
+            Map<String, List<Element>> sourceElements = new LinkedHashMap<>();
             for (Element imageNode : doc.select("img")) {
                 String src = imageNode.attr("src");
 
@@ -282,6 +284,9 @@ public class NoteService extends Service implements Interface {
                     if (src.startsWith("data")) {
                         logger.debug("跳过data图片");
                     }
+                    else if (src.startsWith("blob")) {
+                        logger.debug("跳过blob图片");
+                    }
                     else {
                         String hqSrc = ImageURL.getHighQuality(src);
 
@@ -291,48 +296,48 @@ public class NoteService extends Service implements Interface {
                             src = hqSrc;
                         }
 
-                        htmlImageTags.computeIfAbsent(src, k -> new HashSet<>()).add(imageNode.outerHtml());
+                        sourceElements.computeIfAbsent(src, k -> new LinkedList<>()).add(imageNode);
                     }
                 }
             }
 
-            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(new ArrayList<>(htmlImageTags.keySet()), config.downloadTimeoutSec);
-            for (Downloader.DownloadResult result : results) {
+            for (String src : sourceElements.keySet()) {
+                Downloader.DownloadResult result = downloader.downloadToTemp(src, config.downloadTimeoutSec);
+
                 if (result.isSuc()) {
-                    logger.debug("图片下载: {} => {}", result.getUrl(), result.getFile());
+                    logger.debug("图片下载: {} => {}", src, result.getFile());
 
-                    Optional<String> noteImageTagOpt = getImageTag(result.getFile());
-                    if (noteImageTagOpt.isPresent()) {
-                        String noteImageTag = noteImageTagOpt.get();
+                    Optional<ImageResource> imageResourceOpt = getNoteImageResource(result.getFile());
+                    if (imageResourceOpt.isPresent()) {
+                        ImageTag imageTag = imageResourceOpt.get().toImageTag();
 
-                        for (String htmlImageTag : htmlImageTags.get(result.getUrl())) {
-                            logger.debug("图片标签替换: {} => {}", htmlImageTag, noteImageTag);
+                        for (Element imageNode : sourceElements.get(src)) {
+                            String search = imageNode.outerHtml();
+                            String replacement = imageTag.genTag(imageNode);
 
-                            note.setContent(note.getContent().replace(htmlImageTag, noteImageTag));
+                            logger.debug("图片标签替换: {} => {}", search, replacement);
+                            note.setContent(note.getContent().replace(search, replacement));
                         }
+
+                        note.addToResources(imageResourceOpt.get());
 
                         changes += 1;
                     }
-                    else {
-                        logger.error("无效的图片文件[{}]", result.getFile());
-                    }
                 }
                 else {
-                    logger.error("图片下载出错[url={} => file={}]: {}", result.getUrl(), result.getFile(), result.getException());
+                    logger.error("图片下载出错[url={} => file={}]: {}", src, result.getFile(), result.getException());
                 }
             }
 
             return changes;
         }
 
-        Optional<String> getImageTag(String file) {
+        Optional<ImageResource> getNoteImageResource(String file) {
             try {
-                String tag = new ImageFile(file).toImageResource().toImageTag().toString();
-
-                return Optional.of(tag);
+                return Optional.of(new ImageFile(file).toImageResource());
             }
             catch (Exception e) {
-                logger.error("文件[{}]无法读取为图片标签: ", e);
+                logger.error("文件[{}]无法读取为图片资源: ", e);
             }
 
             return Optional.empty();

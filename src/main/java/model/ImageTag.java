@@ -1,5 +1,8 @@
 package model;
 
+
+import org.jsoup.nodes.Element;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,8 +13,7 @@ public class ImageTag {
         this.resource = resource;
     }
 
-    @Override
-    public String toString() {
+    public String genTag(Element imageNode) {
         String tagTpl = "<en-media %s />";
 
         List<String> attrs = new ArrayList<>();
@@ -21,9 +23,10 @@ public class ImageTag {
 
         if (resource.getWidth() > 650) {
             attrs.add(String.format("width=\"%s\"", 650));
-        } else {
-            attrs.add(String.format("height=\"%s\"", resource.getHeight()));
-            attrs.add(String.format("width=\"%s\"", resource.getWidth()));
+        }
+
+        if (!imageNode.attr("style").isEmpty()) {
+            attrs.add(String.format("style=\"%s\"", imageNode.attr("style")));
         }
 
         return String.format(tagTpl, String.join(" ", attrs));
@@ -40,5 +43,4 @@ public class ImageTag {
         }
         return sb.toString();
     }
-
 }
