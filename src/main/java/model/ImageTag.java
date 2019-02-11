@@ -4,6 +4,7 @@ package model;
 import org.jsoup.nodes.Element;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class ImageTag {
@@ -13,7 +14,7 @@ public class ImageTag {
         this.resource = resource;
     }
 
-    public String genTag(Element imageNode) {
+    public String genTag(Element sourceNode) {
         String tagTpl = "<en-media %s />";
 
         List<String> attrs = new ArrayList<>();
@@ -25,8 +26,12 @@ public class ImageTag {
             attrs.add(String.format("width=\"%s\"", 650));
         }
 
-        if (!imageNode.attr("style").isEmpty()) {
-            attrs.add(String.format("style=\"%s\"", imageNode.attr("style")));
+        for (String attr : Arrays.asList("style", "title", "lang", "dir", "align", "alt", "longdesc", "border", "hspace", "vspace", "usemap")) {
+            String attrv = sourceNode.attr(attr);
+
+            if (!attrv.isBlank()) {
+                attrs.add(String.format("%s=\"%s\"", attr, attrv));
+            }
         }
 
         return String.format(tagTpl, String.join(" ", attrs));
