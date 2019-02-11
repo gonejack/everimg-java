@@ -303,7 +303,7 @@ public class NoteService extends Service implements Interface {
                 }
             }
 
-            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(sourceElements.keySet(), config.downloadTimeoutSec);
+            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(sourceElements.keySet(), config.downloadTimeoutSec, 3);
 
             for (Downloader.DownloadResult result : results) {
                 String src = result.getUrl();
