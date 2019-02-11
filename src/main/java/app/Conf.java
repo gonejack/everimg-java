@@ -3,6 +3,7 @@ package app;
 import org.slf4j.Logger;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.Optional;
 import java.util.Properties;
@@ -25,19 +26,17 @@ public class Conf {
             props.load(is);
         }
         catch (Exception e) {
-            logger.trace("error reading file", e);
+            logger.warn("error reading resource[{}]: {}", res_file, e.getMessage());
         }
 
-        if (Optional.ofNullable(env_file).isEmpty()) {
+        try (InputStream is = new FileInputStream(env_file)) {
+            props.load(is);
+        }
+        catch (FileNotFoundException e) {
             logger.warn("env CONF_FILE is empty");
         }
-        else {
-            try (InputStream is = new FileInputStream(env_file)) {
-                props.load(is);
-            }
-            catch (Exception e) {
-                logger.trace("error reading file", e);
-            }
+        catch (Exception e) {
+            logger.error("error reading file", e);
         }
     }
 
