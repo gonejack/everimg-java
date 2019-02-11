@@ -7,10 +7,7 @@ import java.net.URLConnection;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
@@ -29,10 +26,10 @@ public class Downloader {
             tasks.add(new DownloadTempTask(url, timeoutSecForEach, retryTimes));
         }
 
-        int processed = 0;
-        while (true) {
+        Set<DownloadTempTask> running = new LinkedHashSet<>(tasks);
+        while (running.size() > 0) {
             try {
-                for (DownloadTempTask task : tasks) {
+                for (DownloadTempTask task : running) {
                     switch (task.getStatus()) {
                         case PENDING:
                             task.start();
@@ -49,21 +46,16 @@ public class Downloader {
                                 task.retry();
                             }
                             else {
-                                processed += 1;
+                                running.remove(task);
                             }
                         break;
                         case FINISHED:
-                            processed += 1;
+                            running.remove(task);
                         break;
                     }
                 }
 
-                if (processed == tasks.size()) {
-                    break;
-                }
-                else {
-                    Thread.sleep(1000);
-                }
+                Thread.sleep(200);
             }
             catch (InterruptedException e) {
                 break;
@@ -150,6 +142,7 @@ public class Downloader {
 
         @Override
         public void run() {
+            URLConnection connection;
             ReadableByteChannel input = null;
             FileChannel output = null;
             File target = null;
@@ -157,7 +150,7 @@ public class Downloader {
                 this.startTime = System.currentTimeMillis();
                 this.status = DownloadStatus.RUNNING;
 
-                URLConnection connection = new URL(source).openConnection();
+                connection = new URL(source).openConnection();
                 connection.setRequestProperty("User-Agent", USER_AGENT);
 
                 input = Channels.newChannel(connection.getInputStream());
