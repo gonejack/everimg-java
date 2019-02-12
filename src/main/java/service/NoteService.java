@@ -89,34 +89,6 @@ public class NoteService extends Service implements Interface {
         logger.debug("退出完成");
     }
 
-    public NotesMetadataList getRecentUpdatedNoteMetas() {
-        try {
-            logger.debug("读取更新信息");
-
-            SyncState syncState = noteStore.getSyncState();
-            if (syncState.getUpdateCount() > localSyncState.getUpdateCount()) {
-                NotesMetadataList metadataList = noteStore.findNotesMetadata(config.noteFilter, 0, 100, config.noteSpec);
-
-                List<NoteMetadata> notes = new LinkedList<>();
-                for (NoteMetadata note : metadataList.getNotes()) {
-                    if (note.getUpdated() > localSyncState.getUpdateTimeStamp()) {
-                        notes.add(note);
-                    }
-                }
-                metadataList.setNotes(notes);
-
-                localSyncState.setState(syncState);
-                localSyncState.saveIntoFile();
-
-                return metadataList;
-            }
-        }
-        catch (Exception e) {
-            logger.error("获取更新信息失败:", e);
-        }
-
-        return null;
-    }
     public List<Note> getRecentUpdatedNotes() throws InterruptedException {
         NotesMetadataList metaList = this.getRecentUpdatedNoteMetas();
 
@@ -144,6 +116,34 @@ public class NoteService extends Service implements Interface {
 
             return noteList;
         }
+    }
+    private NotesMetadataList getRecentUpdatedNoteMetas() {
+        try {
+            logger.debug("读取更新信息");
+
+            SyncState syncState = noteStore.getSyncState();
+            if (syncState.getUpdateCount() > localSyncState.getUpdateCount()) {
+                NotesMetadataList metadataList = noteStore.findNotesMetadata(config.noteFilter, 0, 100, config.noteSpec);
+
+                List<NoteMetadata> notes = new LinkedList<>();
+                for (NoteMetadata note : metadataList.getNotes()) {
+                    if (note.getUpdated() > localSyncState.getUpdateTimeStamp()) {
+                        notes.add(note);
+                    }
+                }
+                metadataList.setNotes(notes);
+
+                localSyncState.setState(syncState);
+                localSyncState.saveIntoFile();
+
+                return metadataList;
+            }
+        }
+        catch (Exception e) {
+            logger.error("获取更新信息失败:", e);
+        }
+
+        return null;
     }
     public Note getNote(NoteMetadata metadata) {
         try {
