@@ -3,7 +3,7 @@
     <module name="everimg.everimg-java.test" />
     <extension name="coverage">
       <pattern>
-        <option name="PATTERN" value="libs.*" />
+        <option name="PATTERN" value="model.*" />
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>

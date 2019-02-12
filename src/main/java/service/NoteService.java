@@ -12,10 +12,10 @@ import com.evernote.edam.type.Note;
 import com.evernote.edam.type.NoteSortOrder;
 import com.google.gson.Gson;
 import libs.Downloader;
-import libs.ImageURL;
 import model.ImageFile;
 import model.ImageResource;
 import model.ImageTag;
+import model.ImageURL;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -252,7 +252,7 @@ public class NoteService extends Service implements Interface {
 
                 logger.debug("保存状态文件[{}]: {}", config.syncStateFile, json);
 
-                Files.writeString(Path.of(config.syncStateFile), json, Charset.forName("utf-8"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                Files.writeString(Path.of(config.syncStateFile), json, Charset.forName("utf-8"), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
             }
             catch (Exception e) {
                 logger.error("无法保存状态文件[{}]", e);
@@ -292,15 +292,17 @@ public class NoteService extends Service implements Interface {
                         logger.debug("跳过blob图片");
                     }
                     else {
-                        String hqSrc = ImageURL.getHighQuality(src);
+                        ImageURL imageURL = new ImageURL(src);
 
-                        if (!src.equals(hqSrc)) {
+                        if (imageURL.hasHighQuality()) {
+                            String hqSrc = imageURL.getHighQuality();
+
                             logger.debug("使用更高质量图片 {} => {}", hqSrc, src);
 
                             src = hqSrc;
                         }
 
-                        sourceElements.computeIfAbsent(src, k -> new LinkedList<>()).add(imageNode);
+                        sourceElements.computeIfAbsent(src, s -> new LinkedList<>()).add(imageNode);
                     }
                 }
             }

@@ -1,11 +1,19 @@
-package libs;
+package model;
 
 import java.util.Objects;
 
 public class ImageURL {
-    public static String getHighQuality(String origin) {
+    private String origin;
+    private String hq;
+
+    public ImageURL(String origin) {
         Objects.requireNonNull(origin);
 
+        this.origin = origin;
+        this.hq = getHighQuality();
+    }
+
+    public String getHighQuality() {
         String url = commonFix(origin);
 
         if (url.contains(".media.tumblr.com")) {
@@ -22,6 +30,9 @@ public class ImageURL {
         }
 
         return url;
+    }
+    public boolean hasHighQuality() {
+        return !origin.equals(hq);
     }
 
     private static String commonFix(String url) {
