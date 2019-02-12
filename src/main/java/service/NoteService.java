@@ -112,7 +112,7 @@ public class NoteService extends Service implements Interface {
             }
         }
         catch (Exception e) {
-            logger.error("获取更新信息失败", e);
+            logger.error("获取更新信息失败:", e);
         }
 
         return null;
@@ -160,7 +160,8 @@ public class NoteService extends Service implements Interface {
             logger.debug("保存笔记[{}]", note.getTitle());
 
             this.noteStore.updateNote(note);
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             logger.error("保存笔记[{}]出错: {}", note.getTitle(), e.getMessage());
         }
     }
