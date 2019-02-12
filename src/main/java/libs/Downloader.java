@@ -7,7 +7,10 @@ import java.net.URLConnection;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.*;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
@@ -26,9 +29,11 @@ public class Downloader {
             tasks.add(new DownloadTempTask(url, timeoutSecForEach, retryTimes));
         }
 
-        Set<DownloadTempTask> running = new LinkedHashSet<>(tasks);
+        List<DownloadTempTask> running = new LinkedList<>(tasks);
         while (running.size() > 0) {
             try {
+                List<DownloadTempTask> done = new LinkedList<>();
+
                 for (DownloadTempTask task : running) {
                     switch (task.getStatus()) {
                         case PENDING:
@@ -46,14 +51,16 @@ public class Downloader {
                                 task.retry();
                             }
                             else {
-                                running.remove(task);
+                                done.add(task);
                             }
                         break;
                         case FINISHED:
-                            running.remove(task);
+                            done.add(task);
                         break;
                     }
                 }
+
+                running.removeAll(done);
 
                 Thread.sleep(200);
             }
@@ -128,6 +135,8 @@ public class Downloader {
         Exception exception;
         DownloadStatus status;
 
+        ReadableByteChannel input;
+        FileChannel output;
         Future future;
         long startTime;
         int timeoutSec;
@@ -142,16 +151,16 @@ public class Downloader {
 
         @Override
         public void run() {
-            URLConnection connection;
-            ReadableByteChannel input = null;
-            FileChannel output = null;
             File target = null;
             try {
                 this.startTime = System.currentTimeMillis();
                 this.status = DownloadStatus.RUNNING;
 
+                URLConnection connection;
                 connection = new URL(source).openConnection();
                 connection.setRequestProperty("User-Agent", USER_AGENT);
+                connection.setConnectTimeout(timeoutSec * 1000);
+                connection.setReadTimeout(timeoutSec * 1000);
 
                 input = Channels.newChannel(connection.getInputStream());
                 output = new FileOutputStream(target = File.createTempFile("everimg", ".pic")).getChannel();
@@ -162,7 +171,7 @@ public class Downloader {
                     total += read;
 
                     if (Thread.interrupted()) {
-                        throw new TimeoutException(String.format("下载超时，超时限制[%ss]", timeoutSec));
+                        throw new TimeoutException(String.format("下载中断，超时配置为[%ss]", timeoutSec));
                     }
                 }
 

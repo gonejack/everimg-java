@@ -64,7 +64,7 @@ public class NoteService extends Service implements Interface {
             }
         }
         catch (Exception e) {
-            logger.error("构建客户端出错 ", e);
+            logger.error("构建客户端出错:", e);
 
             System.exit(-1);
         }
@@ -179,7 +179,8 @@ public class NoteService extends Service implements Interface {
         final boolean sandbox = Conf.get("evernote.sandbox", false);
         final String syncStateFile = Conf.get("deploy.syncStateFile", "./conf/state.json");
         final int downloadParallelism = Conf.get("deploy.download.parallelism", 3);
-        final int downloadTimeoutSec = Conf.get("deploy.download.timeout", 30);
+        final int downloadTimeoutSec = Conf.get("deploy.download.timeoutSeconds", 180);
+        final int downloadRetryTimes = Conf.get("deploy.download.retryTimes", 2);
 
         final EvernoteService service;
         final NoteFilter noteFilter;
@@ -303,7 +304,7 @@ public class NoteService extends Service implements Interface {
                 }
             }
 
-            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(sourceElements.keySet(), config.downloadTimeoutSec, 3);
+            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(sourceElements.keySet(), config.downloadTimeoutSec, config.downloadRetryTimes);
 
             for (Downloader.DownloadResult result : results) {
                 String src = result.getUrl();

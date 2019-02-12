@@ -7,7 +7,7 @@ import java.util.List;
 
 
 public class DownloaderTest {
-    final int timeoutSec = 10;
+    final int timeoutSec = 20;
 
     @Test
     public void downloadAllToTemp() {
@@ -27,7 +27,7 @@ public class DownloaderTest {
             "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif"
         );
 
-        List<Downloader.DownloadResult> results = new Downloader(5).downloadAllToTemp(list, timeoutSec);
+        List<Downloader.DownloadResult> results = new Downloader(5).downloadAllToTemp(list, timeoutSec, 1);
 
         for (Downloader.DownloadResult result : results) {
             System.out.println(result.getUrl());
