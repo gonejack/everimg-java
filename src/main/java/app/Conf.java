@@ -29,14 +29,19 @@ public class Conf {
             logger.warn("error reading resource[{}]: {}", res_file, e.getMessage());
         }
 
-        try (InputStream is = new FileInputStream(env_file)) {
-            props.load(is);
-        }
-        catch (FileNotFoundException e) {
+        if (env_file == null) {
             logger.warn("env CONF_FILE is empty");
         }
-        catch (Exception e) {
-            logger.error("error reading file", e);
+        else {
+            try (InputStream is = new FileInputStream(env_file)) {
+                props.load(is);
+            }
+            catch (FileNotFoundException e) {
+                logger.warn("count not found {}", env_file);
+            }
+            catch (Exception e) {
+                logger.error("error reading {}:", env_file, e);
+            }
         }
     }
 

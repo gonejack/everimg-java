@@ -42,6 +42,17 @@ compileJava {
     }
 }
 
+//jar {
+//    manifest {
+//        attributes(
+//                'Main-Class': 'app.App'
+//        )
+//    }
+//    from {
+//        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+//    }
+//}
+
 // to native application
 jlink {
     mainClassName='app.App'

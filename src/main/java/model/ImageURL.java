@@ -36,6 +36,10 @@ public class ImageURL {
     }
 
     private static String commonFix(String url) {
+        if (url.startsWith("//")) {
+            url = "http:" + url;
+        }
+
         return url.trim().replace(" ", "");
     }
     private static String getTumblrHQ(String url) {
