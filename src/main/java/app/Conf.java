@@ -25,9 +25,7 @@ public class Conf {
         System.getProperties().forEach((k, v) -> props.setProperty((String) k, (String) v));
     }
     private static void loadFromResource() {
-        try {
-            InputStream is = Conf.class.getClassLoader().getResourceAsStream(res_file);
-
+        try (InputStream is = Conf.class.getClassLoader().getResourceAsStream(res_file)) {
             if (is == null) {
                 throw new Exception(String.format("resource %s not found", res_file));
             }
@@ -40,6 +38,10 @@ public class Conf {
     }
     private static void loadFromFile() {
         try (InputStream is = Conf.class.getClassLoader().getResourceAsStream(res_file)) {
+            if (is == null) {
+                throw new Exception(String.format("config file %s not found", res_file));
+            }
+
             props.load(is);
         }
         catch (Exception e) {
