@@ -35,7 +35,7 @@ public class NoteService extends Service implements Interface {
     private final static Logger logger = Log.newLogger(NoteService.class);
     private final Config config;
     private final Downloader downloader;
-    private final ModifyHelper modifyHelper;
+    private final NoteModifyHelper modifyHelper;
 
     private LocalSyncState localSyncState;
     private UserStoreClient userStore;
@@ -45,7 +45,7 @@ public class NoteService extends Service implements Interface {
     private NoteService() {
         this.config = new Config();
         this.downloader = new Downloader(config.downloadParallelism);
-        this.modifyHelper = new ModifyHelper();
+        this.modifyHelper = new NoteModifyHelper();
         this.localSyncState = new LocalSyncState();
 
         try {
@@ -168,8 +168,8 @@ public class NoteService extends Service implements Interface {
     public int modifyNote(Note note) {
         int changes = 0;
 
-        changes += modifyHelper.modifyNoteTitle(note);
-        changes += modifyHelper.modifyNoteContent(note);
+        changes += modifyHelper.modifyTitle(note);
+        changes += modifyHelper.modifyContent(note);
 
         return changes;
     }
@@ -259,8 +259,8 @@ public class NoteService extends Service implements Interface {
             }
         }
     }
-    private class ModifyHelper {
-        int modifyNoteTitle(Note note) {
+    private class NoteModifyHelper {
+        int modifyTitle(Note note) {
             int changes = 0;
 
             String title = note.getTitle();
@@ -272,12 +272,12 @@ public class NoteService extends Service implements Interface {
 
             return changes;
         }
-        int modifyNoteContent(Note note) {
+        int modifyContent(Note note) {
             int changes = 0;
 
             Document doc = Jsoup.parse(note.getContent());
 
-            Map<String, List<Element>> sourceElements = new LinkedHashMap<>();
+            Map<String, List<Element>> imageNodes = new LinkedHashMap<>();
             for (Element imageNode : doc.select("img")) {
                 String src = imageNode.attr("src");
 
@@ -297,17 +297,18 @@ public class NoteService extends Service implements Interface {
                         if (imageURL.hasHighQuality()) {
                             String hqSrc = imageURL.getHighQuality();
 
-                            logger.debug("使用更高质量图片 {} => {}", hqSrc, src);
+                            logger.debug("匹配更高质量图片 {} => {}", src, hqSrc);
 
                             src = hqSrc;
                         }
 
-                        sourceElements.computeIfAbsent(src, s -> new LinkedList<>()).add(imageNode);
+                        imageNodes.computeIfAbsent(src, s -> new LinkedList<>()).add(imageNode);
                     }
                 }
             }
 
-            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(sourceElements.keySet(), config.downloadTimeoutSec, config.downloadRetryTimes);
+            List<String> sourceURLs = new ArrayList<>(imageNodes.keySet());
+            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(sourceURLs, config.downloadTimeoutSec, config.downloadRetryTimes);
 
             for (Downloader.DownloadResult result : results) {
                 String src = result.getUrl();
@@ -316,11 +317,11 @@ public class NoteService extends Service implements Interface {
                 if (result.isSuc()) {
                     logger.debug("图片下载: {} => {}", src, file);
 
-                    Optional<ImageResource> imageResource = getNoteImageResource(file);
-                    if (imageResource.isPresent()) {
-                        ImageTag imageTag = imageResource.get().toImageTag();
+                    Optional<ImageResource> imageRes = getNoteImageResource(file);
+                    if (imageRes.isPresent()) {
+                        ImageTag imageTag = imageRes.get().toImageTag();
 
-                        for (Element imageNode : sourceElements.get(src)) {
+                        for (Element imageNode : imageNodes.get(src)) {
                             String search = imageNode.outerHtml();
                             String replacement = imageTag.genTag(imageNode);
 
@@ -328,7 +329,7 @@ public class NoteService extends Service implements Interface {
                             note.setContent(note.getContent().replace(search, replacement));
                         }
 
-                        note.addToResources(imageResource.get());
+                        note.addToResources(imageRes.get());
 
                         changes += 1;
                     }

@@ -25,7 +25,7 @@ public class App {
         services.add(NoteService.init());
         workers.add(NoteUpdateWorker.init());
 
-        Stop.init();
+        AppStop.init();
     }
     private static void start() {
         logger.info("开始启动");
@@ -44,12 +44,12 @@ public class App {
         logger.info("退出完成");
     }
 
-    static class Stop extends Thread implements SignalHandler {
+    static class AppStop extends Thread implements SignalHandler {
         static void init() {
-            Stop stopper = new Stop();
+            AppStop appStop = new AppStop();
 
-            Signal.handle(new Signal("INT"), stopper);
-            Signal.handle(new Signal("TERM"), stopper);
+            Signal.handle(new Signal("INT"), appStop);
+            Signal.handle(new Signal("TERM"), appStop);
         }
 
         @Override
