@@ -28,6 +28,7 @@ public class NoteUpdateWorker extends Worker implements Interface {
                 }
                 catch (InterruptedException e) {
                     logger.debug("中断循环: {}", e.getMessage());
+
                     break;
                 }
             }
