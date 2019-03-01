@@ -16,10 +16,27 @@ public class Conf {
 
     public static void init() {
         loadFromSystem();
+        loadFromResource();
         loadFromFile();
+
+//        props.forEach((k, v) -> logger.debug("{} => {}", k, v));
     }
     private static void loadFromSystem() {
         System.getProperties().forEach((k, v) -> props.setProperty((String) k, (String) v));
+    }
+    private static void loadFromResource() {
+        try {
+            InputStream is = Conf.class.getClassLoader().getResourceAsStream(res_file);
+
+            if (is == null) {
+                throw new Exception(String.format("resource %s not found", res_file));
+            }
+
+            props.load(is);
+        }
+        catch (Exception e) {
+            logger.error(String.format("Load resource config: %s", e.getMessage()));
+        }
     }
     private static void loadFromFile() {
         try (InputStream is = Conf.class.getClassLoader().getResourceAsStream(res_file)) {
