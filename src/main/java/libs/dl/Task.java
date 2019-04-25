@@ -22,16 +22,16 @@ public class Task implements Runnable {
             this.userAgent = userAgent;
         }
     }
-    private Phaser phaser;
-    private Config config;
     private String source;
     private String target;
+    private Config config;
+    private Phaser phaser;
 
     private boolean suc = false;
-    private boolean running;
+    private boolean running = false;
     private long startTime = 0;
     private int retryTimes = 0;
-    private Result result;
+    private Result result = null;
 
     Task(String source, String target, Config config, Phaser phaser) {
         this.source = source;
@@ -96,15 +96,15 @@ public class Task implements Runnable {
         phaser.arrive();
     }
 
-    public boolean isTimeout() {
+    boolean isTimeout() {
         synchronized (this) {
             return running && startTime > 0 && config.timeoutSec > 0 && System.currentTimeMillis() - startTime > config.timeoutSec * 1000;
         }
     }
-    public boolean isDone() {
+    boolean isDone() {
         return !running && result != null;
     }
-    public Result getResult() {
+    Result getResult() {
         return result;
     }
 }
