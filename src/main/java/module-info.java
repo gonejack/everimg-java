@@ -1,4 +1,4 @@
-module everimg {
+open module everimg {
     requires slf4j.api;
     requires slf4j.simple;
     requires jdk.unsupported;

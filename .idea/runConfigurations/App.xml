@@ -6,7 +6,7 @@
     </envs>
     <option name="INCLUDE_PROVIDED_SCOPE" value="true" />
     <option name="MAIN_CLASS_NAME" value="app.App" />
-    <module name="everimg.everimg-java.main" />
+    <module name="everimg-java.main" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="app.*" />

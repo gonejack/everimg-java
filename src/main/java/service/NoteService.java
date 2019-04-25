@@ -1,7 +1,6 @@
 package service;
 
 import app.Conf;
-import app.Log;
 import com.evernote.auth.EvernoteAuth;
 import com.evernote.auth.EvernoteService;
 import com.evernote.clients.ClientFactory;
@@ -11,7 +10,8 @@ import com.evernote.edam.notestore.*;
 import com.evernote.edam.type.Note;
 import com.evernote.edam.type.NoteSortOrder;
 import com.google.gson.Gson;
-import libs.Downloader;
+import libs.dl.Downloader;
+import libs.dl.Result;
 import model.ImageFile;
 import model.ImageResource;
 import model.ImageTag;
@@ -20,8 +20,10 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +34,7 @@ import static com.evernote.edam.userstore.Constants.EDAM_VERSION_MAJOR;
 import static com.evernote.edam.userstore.Constants.EDAM_VERSION_MINOR;
 
 public class NoteService extends Service implements Interface {
-    private final static Logger logger = Log.newLogger(NoteService.class);
+    private final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
     private final Config config;
     private final Downloader downloader;
     private final NoteModifyHelper modifyHelper;
@@ -56,19 +58,18 @@ public class NoteService extends Service implements Interface {
 
             if (userStore.checkVersion("everimg", EDAM_VERSION_MAJOR, EDAM_VERSION_MINOR)) {
                 logger.debug("客户端构建完成");
-            }
-            else {
+            } else {
                 logger.error("客户端版本不兼容");
 
                 System.exit(-1);
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error("构建客户端出错:", e);
 
             System.exit(-1);
         }
     }
+
     public static synchronized NoteService init() {
         if (me == null) {
             me = new NoteService();
@@ -94,8 +95,7 @@ public class NoteService extends Service implements Interface {
 
         if (metaList == null) {
             return Collections.emptyList();
-        }
-        else {
+        } else {
             List<Note> noteList = new LinkedList<>();
 
             for (NoteMetadata meta : metaList.getNotes()) {
@@ -106,8 +106,7 @@ public class NoteService extends Service implements Interface {
                 Note note = this.getNote(meta);
                 if (note == null) {
                     logger.error("读取笔记[{}]为空", meta.getTitle());
-                }
-                else {
+                } else {
                     logger.debug("读取笔记[{}]", meta.getTitle());
 
                     noteList.add(note);
@@ -117,6 +116,7 @@ public class NoteService extends Service implements Interface {
             return noteList;
         }
     }
+
     private NotesMetadataList getRecentUpdatedNoteMetas() {
         try {
             logger.debug("读取更新信息");
@@ -138,33 +138,33 @@ public class NoteService extends Service implements Interface {
 
                 return metadataList;
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error("获取更新信息失败:", e);
         }
 
         return null;
     }
+
     public Note getNote(NoteMetadata metadata) {
         try {
             return this.noteStore.getNote(metadata.getGuid(), true, false, true, false);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error("读取笔记[{}]发生错误: {}", metadata.getTitle(), e);
         }
 
         return null;
     }
+
     public void saveNote(Note note) {
         try {
             logger.debug("保存笔记[{}]", note.getTitle());
 
             this.noteStore.updateNote(note);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error("保存笔记[{}]出错: {}", note.getTitle(), e.getMessage());
         }
     }
+
     public int modifyNote(Note note) {
         int changes = 0;
 
@@ -206,6 +206,7 @@ public class NoteService extends Service implements Interface {
             this.service = service;
         }
     }
+
     private class LocalSyncState {
         class Data {
             int updateCount;
@@ -217,16 +218,20 @@ public class NoteService extends Service implements Interface {
         LocalSyncState() {
             this.readFromFile();
         }
+
         int getUpdateCount() {
             return data.updateCount;
         }
+
         long getUpdateTimeStamp() {
             return data.updateTimeStamp;
         }
+
         void setState(SyncState state) {
             data.updateCount = state.getUpdateCount();
             data.updateTimeStamp = state.getCurrentTime();
         }
+
         void readFromFile() {
             try {
                 Path path = Path.of(config.syncStateFile);
@@ -237,8 +242,7 @@ public class NoteService extends Service implements Interface {
                     logger.debug("读取状态文件[{}]: {}", config.syncStateFile, json);
 
                     data = new Gson().fromJson(json, Data.class);
-                }
-                else {
+                } else {
                     logger.debug("没有状态文件[{}]", path.toAbsolutePath());
                 }
             }
@@ -246,6 +250,7 @@ public class NoteService extends Service implements Interface {
                 logger.error("无法读取状态文件[{}]", e);
             }
         }
+
         void saveIntoFile() {
             try {
                 String json = new Gson().toJson(data);
@@ -253,12 +258,12 @@ public class NoteService extends Service implements Interface {
                 logger.debug("保存状态文件[{}]: {}", config.syncStateFile, json);
 
                 Files.writeString(Path.of(config.syncStateFile), json, Charset.forName("utf-8"), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 logger.error("无法保存状态文件[{}]", e);
             }
         }
     }
+
     private class NoteModifyHelper {
         int modifyTitle(Note note) {
             int changes = 0;
@@ -272,6 +277,7 @@ public class NoteService extends Service implements Interface {
 
             return changes;
         }
+
         int modifyContent(Note note) {
             int changes = 0;
 
@@ -283,15 +289,12 @@ public class NoteService extends Service implements Interface {
 
                 if (src.isEmpty()) {
                     logger.warn("HTML标签{}缺失图片地址", imageNode.outerHtml());
-                }
-                else {
+                } else {
                     if (src.startsWith("data")) {
                         logger.debug("跳过data图片");
-                    }
-                    else if (src.startsWith("blob")) {
+                    } else if (src.startsWith("blob")) {
                         logger.debug("跳过blob图片");
-                    }
-                    else {
+                    } else {
                         ImageURL imageURL = new ImageURL(src);
 
                         if (imageURL.hasHighQuality()) {
@@ -308,9 +311,9 @@ public class NoteService extends Service implements Interface {
             }
 
             List<String> sourceURLs = new ArrayList<>(imageNodes.keySet());
-            List<Downloader.DownloadResult> results = downloader.downloadAllToTemp(sourceURLs, config.downloadTimeoutSec, config.downloadRetryTimes);
+            List<Result> results = downloader.downloadAllToTemp(sourceURLs, config.downloadTimeoutSec, config.downloadRetryTimes);
 
-            for (Downloader.DownloadResult result : results) {
+            for (Result result : results) {
                 String src = result.getUrl();
                 String file = result.getFile();
 
@@ -333,8 +336,7 @@ public class NoteService extends Service implements Interface {
 
                         changes += 1;
                     }
-                }
-                else {
+                } else {
                     logger.error("图片下载出错[url={} => file={}]: {}", src, file, result.getException());
                 }
             }
@@ -345,8 +347,7 @@ public class NoteService extends Service implements Interface {
         Optional<ImageResource> getNoteImageResource(String file) {
             try {
                 return Optional.of(new ImageFile(file).toImageResource());
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 logger.error("文件[{}]无法读取为图片资源: ", e);
             }
 
