@@ -22,18 +22,20 @@ public class Downloader {
         Objects.requireNonNull(urls);
 
         Phaser phaser = new Phaser();
+        phaser.register();
+
         List<Task> tasks = new LinkedList<>();
         Task.Config config = new Task.Config(timeoutSecForEach, retryTimes, USER_AGENT);
         for (String url : urls) {
             phaser.register();
-            tasks.add(new Task(url, null, config, phaser));
-        }
 
-        for (Task task : tasks) {
+            Task task = new Task(url, null, config, phaser);
+
+            tasks.add(task);
+
             runningTasks.put(task, this.executeSrv.submit(task));
         }
 
-        phaser.register();
         phaser.arriveAndAwaitAdvance();
 
         return tasks.stream().map(Task::getResult).collect(Collectors.toList());

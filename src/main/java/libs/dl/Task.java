@@ -102,7 +102,7 @@ public class Task implements Runnable {
         }
     }
     public boolean isDone() {
-        return result != null;
+        return !running && result != null;
     }
     public Result getResult() {
         return result;
