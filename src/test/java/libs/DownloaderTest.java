@@ -30,7 +30,7 @@ public class DownloaderTest {
         );
 
         Downloader downloader = new Downloader(5);
-        List<Result> results = downloader.downloadAllToTemp(list, timeoutSec, 1);
+        List<Result> results = downloader.downloadAllToTemp(list, timeoutSec, 2);
 
         for (Result result : results) {
             System.out.println(result.getUrl());

@@ -9,9 +9,9 @@ import java.util.stream.Collectors;
 
 public class Downloader {
     private final static String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36";
-    private final ExecutorService executeSrv;
-    private final Map<Task, Future> runningTasks = new LinkedHashMap<>();
-    private final Thread taskWatcher = new Thread(new TaskWatcher());
+    private ExecutorService executeSrv;
+    private Map<Task, Future> runningTasks = new LinkedHashMap<>();
+    private Thread taskWatcher = new Thread(new TaskWatcher());
 
     public Downloader(int parallelism) {
         this.executeSrv = Executors.newFixedThreadPool(parallelism);
@@ -39,6 +39,10 @@ public class Downloader {
         phaser.arriveAndAwaitAdvance();
 
         return tasks.stream().map(Task::getResult).collect(Collectors.toList());
+    }
+
+    public void stop() {
+        taskWatcher.interrupt();
     }
 
     class TaskWatcher implements Runnable {

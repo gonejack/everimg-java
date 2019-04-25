@@ -88,6 +88,7 @@ public class Task implements Runnable {
             finally {
                 synchronized (this) {
                     running = false;
+                    startTime = 0;
                 }
             }
         }
