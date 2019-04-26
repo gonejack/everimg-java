@@ -1,5 +1,9 @@
 package libs.dl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.lang.invoke.MethodHandles;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -8,10 +12,11 @@ import java.util.concurrent.Phaser;
 import java.util.stream.Collectors;
 
 public class Downloader {
+    private final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
     private final static String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36";
-    private ExecutorService executeSrv;
-    private Map<Task, Future> runningTasks = new LinkedHashMap<>();
-    private Thread taskWatcher = new Thread(new TaskWatcher());
+    private final Map<Task, Future> runningTasks = new LinkedHashMap<>();
+    private final ExecutorService executeSrv;
+    private final Thread taskWatcher = new TaskWatcher();
 
     public Downloader(int parallelism) {
         this.executeSrv = Executors.newFixedThreadPool(parallelism);
@@ -42,23 +47,47 @@ public class Downloader {
     }
 
     public void stop() {
-        taskWatcher.interrupt();
+        while (true) {
+            synchronized (runningTasks) {
+                if (runningTasks.size() == 0) {
+                    taskWatcher.interrupt();
+
+                    break;
+                }
+            }
+
+            try {
+                logger.debug("等待下载任务完成");
+
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+
+                break;
+            }
+        }
     }
 
-    class TaskWatcher implements Runnable {
+    class TaskWatcher extends Thread {
+        TaskWatcher() {
+            super(TaskWatcher.class.getSimpleName());
+        }
+
         @Override
         public void run() {
             while (true) {
-                Iterator<Map.Entry<Task, Future>> it = runningTasks.entrySet().iterator();
+                synchronized (runningTasks) {
+                    Iterator<Map.Entry<Task, Future>> it = runningTasks.entrySet().iterator();
 
-                while (it.hasNext()) {
-                    Map.Entry<Task, Future> taskAndFuture = it.next();
-                    Task task = taskAndFuture.getKey();
-                    if (task.isTimeout()) {
-                        taskAndFuture.getValue().cancel(true);
-                    }
-                    if (task.isDone()) {
-                        it.remove();
+                    while (it.hasNext()) {
+                        Map.Entry<Task, Future> taskAndFuture = it.next();
+                        Task task = taskAndFuture.getKey();
+                        if (task.isTimeout()) {
+                            taskAndFuture.getValue().cancel(true);
+                        }
+                        if (task.isDone()) {
+                            it.remove();
+                        }
                     }
                 }
 
@@ -66,7 +95,8 @@ public class Downloader {
                     Thread.sleep(200);
                 }
                 catch (InterruptedException e) {
-                    e.printStackTrace();
+                    logger.debug("退出检查线程 {}", e.getMessage());
+
                     break;
                 }
             }

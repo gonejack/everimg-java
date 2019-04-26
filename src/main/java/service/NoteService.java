@@ -87,6 +87,9 @@ public class NoteService extends Service implements Interface {
     @Override
     public void stop() {
         logger.debug("开始退出");
+
+        downloader.stop();
+
         logger.debug("退出完成");
     }
 
