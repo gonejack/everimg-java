@@ -2,8 +2,6 @@ package app;
 
 import org.slf4j.Logger;
 import service.NoteService;
-import sun.misc.Signal;
-import sun.misc.SignalHandler;
 import worker.NoteUpdateWorker;
 
 import java.util.ArrayList;
@@ -45,21 +43,9 @@ public class App {
         logger.info("退出完成");
     }
 
-    static class Stop extends Thread implements SignalHandler {
+    static class Stop extends Thread {
         static void init() {
-            Stop appStop = new Stop();
-
-            Signal.handle(new Signal("INT"), appStop);
-            Signal.handle(new Signal("TERM"), appStop);
-        }
-
-        @Override
-        public void handle(Signal signal) {
-            logger.debug("收到信号: {}", signal.toString());
-
-            Runtime.getRuntime().addShutdownHook(this);
-
-            System.exit(0);
+            Runtime.getRuntime().addShutdownHook(new Stop());
         }
 
         @Override

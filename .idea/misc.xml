@@ -4,9 +4,6 @@
   <component name="JavaScriptSettings">
     <option name="languageLevel" value="ES6" />
   </component>
-  <component name="MacroExpansionManager">
-    <option name="directoryName" value="lCdCQJwe" />
-  </component>
   <component name="NodePackageJsonFileManager">
     <packageJsonPaths />
   </component>
@@ -30,9 +27,5 @@
   </component>
   <component name="ProjectRootManager" version="2" languageLevel="JDK_11" default="false" project-jdk-name="12" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/build" />
-  </component>
-  <component name="RustProjectSettings">
-    <option name="toolchainHomeDirectory" value="/usr/local/bin" />
-    <option name="version" value="2" />
   </component>
 </project>
