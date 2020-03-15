@@ -93,8 +93,7 @@ public class Downloader {
 
                 try {
                     Thread.sleep(200);
-                }
-                catch (InterruptedException e) {
+                } catch (InterruptedException e) {
                     logger.debug("退出检查线程 {}", e.getMessage());
 
                     break;

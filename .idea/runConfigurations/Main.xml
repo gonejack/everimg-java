@@ -1,11 +1,11 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="App" type="Application" factoryName="Application" nameIsGenerated="true">
+  <configuration default="false" name="Main" type="Application" factoryName="Application" nameIsGenerated="true">
     <envs>
       <env name="LOG_LEVEL" value="debug" />
       <env name="CONF_FILE" value="./conf/develop.properties" />
     </envs>
     <option name="INCLUDE_PROVIDED_SCOPE" value="true" />
-    <option name="MAIN_CLASS_NAME" value="app.App" />
+    <option name="MAIN_CLASS_NAME" value="app.Main" />
     <module name="everimg-java.main" />
     <extension name="coverage">
       <pattern>

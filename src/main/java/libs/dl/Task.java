@@ -22,6 +22,7 @@ public class Task implements Runnable {
             this.userAgent = userAgent;
         }
     }
+
     private String source;
     private String target;
     private Config config;
@@ -78,14 +79,12 @@ public class Task implements Runnable {
 
                     break;
                 }
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 if (file != null) {
                     file.delete();
                 }
                 exception = e;
-            }
-            finally {
+            } finally {
                 synchronized (this) {
                     running = false;
                     startTime = 0;
@@ -102,9 +101,11 @@ public class Task implements Runnable {
             return running && startTime > 0 && config.timeoutSec > 0 && System.currentTimeMillis() - startTime > config.timeoutSec * 1000;
         }
     }
+
     boolean isDone() {
         return !running && result != null;
     }
+
     Result getResult() {
         return result;
     }

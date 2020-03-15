@@ -10,8 +10,7 @@ public class AppTest {
             String o = "http://www.qq.com/abc.jpg?abcmesmearmem";
             String n = o.substring(0, o.indexOf("?"));
             System.out.println(n);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
 
         }
     }

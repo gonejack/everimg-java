@@ -1,6 +1,5 @@
 package service;
 
-import app.Conf;
 import com.evernote.auth.EvernoteAuth;
 import com.evernote.auth.EvernoteService;
 import com.evernote.clients.ClientFactory;
@@ -24,7 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -33,7 +32,7 @@ import java.util.*;
 import static com.evernote.edam.userstore.Constants.EDAM_VERSION_MAJOR;
 import static com.evernote.edam.userstore.Constants.EDAM_VERSION_MINOR;
 
-public class NoteService extends Service implements Interface {
+public class NoteService extends Service {
     private final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
     private final Config config;
     private final Downloader downloader;
@@ -49,25 +48,6 @@ public class NoteService extends Service implements Interface {
         this.downloader = new Downloader(config.downloadParallelism);
         this.modifyHelper = new NoteModifyHelper();
         this.localSyncState = new LocalSyncState();
-
-        try {
-            ClientFactory factory = new ClientFactory(new EvernoteAuth(config.service, config.token));
-
-            userStore = factory.createUserStoreClient();
-            noteStore = factory.createNoteStoreClient();
-
-            if (userStore.checkVersion("everimg", EDAM_VERSION_MAJOR, EDAM_VERSION_MINOR)) {
-                logger.debug("客户端构建完成");
-            } else {
-                logger.error("客户端版本不兼容");
-
-                System.exit(-1);
-            }
-        } catch (Exception e) {
-            logger.error("构建客户端出错:", e);
-
-            System.exit(-1);
-        }
     }
 
     public static synchronized NoteService init() {
@@ -79,13 +59,29 @@ public class NoteService extends Service implements Interface {
     }
 
     @Override
-    public void start() {
+    public void start() throws Exception {
         logger.debug("开始启动");
+
+        try {
+            ClientFactory factory = new ClientFactory(new EvernoteAuth(config.service, config.token));
+
+            userStore = factory.createUserStoreClient();
+            noteStore = factory.createNoteStoreClient();
+
+            if (userStore.checkVersion("everimg", EDAM_VERSION_MAJOR, EDAM_VERSION_MINOR)) {
+                logger.debug("客户端构建完成");
+            } else {
+                throw new Exception("客户端版本不兼容");
+            }
+        } catch (Exception e) {
+            throw new NoteServiceException("构建客户端出错:", e);
+        }
+
         logger.debug("启动完成");
     }
 
     @Override
-    public void stop() {
+    public void stop() throws Exception {
         logger.debug("开始退出");
 
         downloader.stop();
@@ -177,14 +173,14 @@ public class NoteService extends Service implements Interface {
         return changes;
     }
 
-    private class Config {
-        final String token = Conf.mustGet("evernote.token");
-        final boolean yinxiang = Conf.get("evernote.china", false);
-        final boolean sandbox = Conf.get("evernote.sandbox", false);
-        final String syncStateFile = Conf.get("deploy.syncStateFile", "./conf/state.json");
-        final int downloadParallelism = Conf.get("deploy.download.parallelism", 3);
-        final int downloadTimeoutSec = Conf.get("deploy.download.timeoutSeconds", 180);
-        final int downloadRetryTimes = Conf.get("deploy.download.retryTimes", 2);
+    private static class Config {
+        final String token = app.Config.mustGet("evernote.token");
+        final boolean yinxiang = app.Config.get("evernote.china", false);
+        final boolean sandbox = app.Config.get("evernote.sandbox", false);
+        final String syncStateFile = app.Config.get("deploy.syncStateFile", "./conf/state.json");
+        final int downloadParallelism = app.Config.get("deploy.download.parallelism", 3);
+        final int downloadTimeoutSec = app.Config.get("deploy.download.timeoutSeconds", 180);
+        final int downloadRetryTimes = app.Config.get("deploy.download.retryTimes", 2);
 
         final EvernoteService service;
         final NoteFilter noteFilter;
@@ -240,7 +236,7 @@ public class NoteService extends Service implements Interface {
                 Path path = Path.of(config.syncStateFile);
 
                 if (Files.exists(path)) {
-                    String json = Files.readString(path, Charset.forName("utf-8"));
+                    String json = Files.readString(path, StandardCharsets.UTF_8);
 
                     logger.debug("读取状态文件[{}]: {}", config.syncStateFile, json);
 
@@ -248,9 +244,8 @@ public class NoteService extends Service implements Interface {
                 } else {
                     logger.debug("没有状态文件[{}]", path.toAbsolutePath());
                 }
-            }
-            catch (IOException e) {
-                logger.error("无法读取状态文件[{}]", e);
+            } catch (IOException e) {
+                logger.error("无法读取状态文件", e);
             }
         }
 
@@ -260,9 +255,9 @@ public class NoteService extends Service implements Interface {
 
                 logger.debug("保存状态文件[{}]: {}", config.syncStateFile, json);
 
-                Files.writeString(Path.of(config.syncStateFile), json, Charset.forName("utf-8"), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+                Files.writeString(Path.of(config.syncStateFile), json, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
             } catch (Exception e) {
-                logger.error("无法保存状态文件[{}]", e);
+                logger.error("无法保存状态文件", e);
             }
         }
     }
@@ -351,10 +346,16 @@ public class NoteService extends Service implements Interface {
             try {
                 return Optional.of(new ImageFile(file).toImageResource());
             } catch (Exception e) {
-                logger.error("文件[{}]无法读取为图片资源: ", e);
+                logger.error("文件[{}]无法读取为图片资源: ", file, e);
             }
 
             return Optional.empty();
+        }
+    }
+
+    private static class NoteServiceException extends Exception {
+        NoteServiceException(String s, Exception e) {
+            super(s, e);
         }
     }
 }

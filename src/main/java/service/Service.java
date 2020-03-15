@@ -1,5 +1,7 @@
 package service;
 
-abstract class Service implements Interface {
+import app.App;
+
+abstract class Service implements App.Component {
 
 }

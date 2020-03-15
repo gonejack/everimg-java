@@ -1,60 +1,77 @@
 package app;
 
 import org.slf4j.Logger;
-import service.NoteService;
-import worker.NoteUpdateWorker;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class App {
     private final static Logger logger = Log.newLogger(App.class);
-    private final static List<service.Interface> services = new ArrayList<>();
-    private final static List<worker.Interface> workers = new ArrayList<>();
+    private final List<Component> services = new ArrayList<>();
+    private final List<Component> workers = new ArrayList<>();
 
     static {
         Log.init();
-        Conf.init();
-        App.init();
-        Stop.init();
-    }
-    public static void main(String[] args) {
-        App.start();
+        Config.init();
     }
 
-    private static void init() {
-        services.add(NoteService.init());
-        workers.add(NoteUpdateWorker.init());
-    }
-    private static void start() {
+    private void start() throws Exception {
         logger.info("开始启动");
-
-        services.forEach(service.Interface::start);
-        workers.forEach(worker.Interface::start);
-
+        for (Component service : services) {
+            service.start();
+        }
+        for (Component worker : workers) {
+            worker.start();
+        }
         logger.info("启动完成");
     }
-    private static void stop() {
+
+    private void stop() {
         logger.info("开始退出");
-
-        workers.forEach(worker.Interface::stop);
-        services.forEach(service.Interface::stop);
-
+        for (Component worker : workers) {
+            try {
+                worker.stop();
+            } catch (Exception e) {
+                logger.error("关闭出错:", e);
+            }
+        }
+        for (Component service : services) {
+            try {
+                service.stop();
+            } catch (Exception e) {
+                logger.error("关闭出错:", e);
+            }
+        }
         logger.info("退出完成");
     }
 
-    static class Stop extends Thread {
-        static void init() {
-            Runtime.getRuntime().addShutdownHook(new Stop());
-        }
+    public void addService(Component service) {
+        services.add(service);
+    }
 
+    public void addWorker(Component worker) {
+        workers.add(worker);
+    }
+
+    public void boot() throws Exception {
+        this.start();
+
+        Runtime.getRuntime().addShutdownHook(new Stop());
+    }
+
+    class Stop extends Thread {
         @Override
         public void run() {
             Thread.currentThread().setName("stop");
-
-            App.stop();
-
-            Thread.getAllStackTraces().forEach((k, v) -> {logger.debug("剩余线程: {}, {}", k, v);});
+            App.this.stop();
+            Thread.getAllStackTraces().forEach((k, v) -> {
+                logger.debug("剩余线程: {}, {}", k, v);
+            });
         }
+    }
+
+    public interface Component {
+        void start() throws Exception;
+        void stop() throws Exception;
     }
 }

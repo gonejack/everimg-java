@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public class Log {
     private final static String LOG_LEVEL;
+
     static {
         LOG_LEVEL = Optional.ofNullable(System.getenv("LOG_LEVEL")).map(s -> s.trim().toLowerCase()).orElse("info");
 

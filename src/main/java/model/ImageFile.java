@@ -29,12 +29,15 @@ public class ImageFile {
     public String getMIME() {
         return mime;
     }
+
     public byte[] getContent() {
         return content;
     }
+
     public int getHeight() {
         return image.getHeight();
     }
+
     public int getWidth() {
         return image.getWidth();
     }

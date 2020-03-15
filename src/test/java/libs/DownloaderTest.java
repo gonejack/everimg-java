@@ -15,12 +15,12 @@ public class DownloaderTest {
     public void downloadAllToTemp() {
         List<String> list = Arrays.asList(
 //            "https://img3.appinn.com/images/201904/ms-office-doc-wechat-miniapp.jpg!o"
-            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
-            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
-            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
-            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
-            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
             "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif"
+//            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
+//            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
+//            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
+//            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
+//            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif"
 //            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
 //            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
 //            "https://wx4.sinaimg.cn/large/729ea5f2gy1fzr22hu2phg207s0b41l3.gif",
