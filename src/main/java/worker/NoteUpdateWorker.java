@@ -2,11 +2,8 @@ package worker;
 
 import app.Config;
 import app.Log;
-import com.evernote.edam.type.Note;
 import org.slf4j.Logger;
 import service.NoteService;
-
-import java.util.List;
 
 public class NoteUpdateWorker extends Worker {
     private final static Logger logger = Log.newLogger(NoteUpdateWorker.class);
@@ -15,20 +12,8 @@ public class NoteUpdateWorker extends Worker {
 
     private static NoteUpdateWorker me;
 
-    private NoteUpdateWorker() {
-
-    }
-
-    public static synchronized NoteUpdateWorker init() {
-        if (me == null) {
-            me = new NoteUpdateWorker();
-        }
-
-        return me;
-    }
-
     @Override
-    public void start() throws Exception {
+    public void start() {
         logger.debug("开始启动");
 
         new Thread(() -> {
@@ -62,17 +47,17 @@ public class NoteUpdateWorker extends Worker {
     }
 
     private void updateNotes() throws InterruptedException {
-        List<Note> updatedNotes = noteService.getRecentUpdatedNotes();
+        var updatedNotes = noteService.getRecentUpdatedNotes();
 
         if (updatedNotes.isEmpty()) {
             logger.debug("待更新列表为空");
         } else {
-            for (Note note : updatedNotes) {
+            for (var note : updatedNotes) {
                 if (Thread.interrupted()) {
                     throw new InterruptedException("主动取消笔记更新");
                 }
 
-                String title = note.getTitle();
+                var title = note.getTitle();
                 logger.debug("准备更新[{}]", title);
 
                 int changes = noteService.modifyNote(note);

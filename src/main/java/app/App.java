@@ -3,12 +3,14 @@ package app;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 public class App {
     private final static Logger logger = Log.newLogger(App.class);
-    private final List<Component> services = new ArrayList<>();
-    private final List<Component> workers = new ArrayList<>();
+    private final List<Callable<Boolean>> starts = new ArrayList<>();
+    private final List<Callable<Boolean>> stops = new ArrayList<>();
 
     static {
         Log.init();
@@ -17,27 +19,17 @@ public class App {
 
     private void start() throws Exception {
         logger.info("开始启动");
-        for (Component service : services) {
-            service.start();
-        }
-        for (Component worker : workers) {
-            worker.start();
+        for (Callable<Boolean> service : starts) {
+            service.call();
         }
         logger.info("启动完成");
     }
 
     private void stop() {
         logger.info("开始退出");
-        for (Component worker : workers) {
+        for (Callable<Boolean> service : stops) {
             try {
-                worker.stop();
-            } catch (Exception e) {
-                logger.error("关闭出错:", e);
-            }
-        }
-        for (Component service : services) {
-            try {
-                service.stop();
+                service.call();
             } catch (Exception e) {
                 logger.error("关闭出错:", e);
             }
@@ -45,12 +37,13 @@ public class App {
         logger.info("退出完成");
     }
 
-    public void addService(Component service) {
-        services.add(service);
+    @SafeVarargs
+    public final void onStart(Callable<Boolean>... fn) {
+        starts.addAll(Arrays.asList(fn));
     }
-
-    public void addWorker(Component worker) {
-        workers.add(worker);
+    @SafeVarargs
+    public final void onStop(Callable<Boolean>... fn) {
+        stops.addAll(Arrays.asList(fn));
     }
 
     public void boot() throws Exception {

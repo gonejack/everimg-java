@@ -9,8 +9,8 @@ abstract class Worker implements App.Component {
         Thread.sleep(sec * 1000);
     }
 
-    private Phaser phaser;
     protected boolean on = true;
+    private Phaser phaser = new Phaser();
     protected void register() {
         phaser.register();
     }

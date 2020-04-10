@@ -11,16 +11,13 @@ import com.evernote.edam.type.NoteSortOrder;
 import com.google.gson.Gson;
 import libs.dl.Downloader;
 import libs.dl.Result;
-import model.ImageFile;
-import model.ImageResource;
-import model.ImageTag;
-import model.ImageURL;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.evernote.edam.userstore.Constants.EDAM_VERSION_MAJOR;
 import static com.evernote.edam.userstore.Constants.EDAM_VERSION_MINOR;
@@ -41,21 +39,34 @@ public class NoteService extends Service {
     private LocalSyncState localSyncState;
     private UserStoreClient userStore;
     private NoteStoreClient noteStore;
-    private static NoteService me;
 
-    private NoteService() {
+    private AtomicReference<FileWriter> fileWriter = new AtomicReference<>();
+
+    public NoteService() {
         this.config = new Config();
         this.downloader = new Downloader(config.downloadParallelism);
         this.modifyHelper = new NoteModifyHelper();
         this.localSyncState = new LocalSyncState();
     }
 
+    private static NoteService me;
     public static synchronized NoteService init() {
         if (me == null) {
             me = new NoteService();
         }
 
         return me;
+    }
+    public static boolean Start() throws Exception {
+        me = new NoteService();
+        me.start();
+
+        return true;
+    }
+    public static boolean Stop() throws Exception {
+        me.stop();
+
+        return true;
     }
 
     @Override
@@ -293,7 +304,7 @@ public class NoteService extends Service {
                     } else if (src.startsWith("blob")) {
                         logger.debug("跳过blob图片");
                     } else {
-                        ImageURL imageURL = new ImageURL(src);
+                        model.ImageURL imageURL = new model.ImageURL(src);
 
                         if (imageURL.hasHighQuality()) {
                             String hqSrc = imageURL.getHighQuality();
@@ -318,9 +329,9 @@ public class NoteService extends Service {
                 if (result.isSuc()) {
                     logger.debug("图片下载: {} => {}", src, file);
 
-                    Optional<ImageResource> imageRes = getNoteImageResource(file);
+                    Optional<model.ImageResource> imageRes = getNoteImageResource(file);
                     if (imageRes.isPresent()) {
-                        ImageTag imageTag = imageRes.get().toImageTag();
+                        model.ImageTag imageTag = imageRes.get().toImageTag();
 
                         for (Element imageNode : imageNodes.get(src)) {
                             String search = imageNode.outerHtml();
@@ -342,9 +353,9 @@ public class NoteService extends Service {
             return changes;
         }
 
-        Optional<ImageResource> getNoteImageResource(String file) {
+        Optional<model.ImageResource> getNoteImageResource(String file) {
             try {
-                return Optional.of(new ImageFile(file).toImageResource());
+                return Optional.of(new model.ImageFile(file).toImageResource());
             } catch (Exception e) {
                 logger.error("文件[{}]无法读取为图片资源: ", file, e);
             }
