@@ -40,7 +40,7 @@ public class NoteService extends Service {
     private UserStoreClient userStore;
     private NoteStoreClient noteStore;
 
-    private AtomicReference<FileWriter> fileWriter = new AtomicReference<>();
+    private final AtomicReference<FileWriter> fileWriter = new AtomicReference<>();
 
     public NoteService() {
         this.config = new Config();

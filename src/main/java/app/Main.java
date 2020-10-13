@@ -7,16 +7,14 @@ public class Main {
         var app = new App();
         try {
             app.onStart(
-                NoteService::Start
+                    NoteService::Start
             );
             app.onStop(
-                NoteService::Stop
+                    NoteService::Stop
             );
-
             app.boot();
         } catch (Exception e) {
             e.printStackTrace();
-
             System.exit(-1);
         }
     }

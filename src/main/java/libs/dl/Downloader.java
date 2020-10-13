@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 public class Downloader {
     private final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
     private final static String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36";
-    private final Map<Task, Future> runningTasks = new LinkedHashMap<>();
+    private final Map<Task, Future<?>> runningTasks = new LinkedHashMap<>();
     private final ExecutorService executeSrv;
     private final Thread taskWatcher = new TaskWatcher();
 
@@ -77,10 +77,10 @@ public class Downloader {
         public void run() {
             while (true) {
                 synchronized (runningTasks) {
-                    Iterator<Map.Entry<Task, Future>> it = runningTasks.entrySet().iterator();
+                    Iterator<Map.Entry<Task, Future<?>>> it = runningTasks.entrySet().iterator();
 
                     while (it.hasNext()) {
-                        Map.Entry<Task, Future> taskAndFuture = it.next();
+                        Map.Entry<Task, Future<?>> taskAndFuture = it.next();
                         Task task = taskAndFuture.getKey();
                         if (task.isTimeout()) {
                             taskAndFuture.getValue().cancel(true);

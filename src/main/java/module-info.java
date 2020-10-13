@@ -8,6 +8,7 @@ open module everimg {
     requires jai.imageio.core;
     requires java.desktop;
     requires java.sql;
+    requires com.google.common;
 
     exports app;
 }
